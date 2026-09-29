@@ -247,7 +247,7 @@ sudo systemctl disable --now mobsf-server insecurebankv2-server
 sudo rm -f /usr/local/bin/{mobsf-*,bank-*,clase1-*,vmconnect}
 sudo rm -f /etc/systemd/system/{mobsf,insecurebankv2}-*.service
 sudo systemctl daemon-reload
-sudo rm -rf /etc/mobile-lab ~/mobile-pentesting-lab
+sudo rm -rf /etc/mobile-lab ~/mobile-owasp-lab
 adb -s 172.25.208.100:5555 uninstall com.android.insecurebankv2
 ```
 

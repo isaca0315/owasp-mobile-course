@@ -311,7 +311,7 @@ Tras la segunda ejecución, la máquina de pruebas (`172.25.208.104`) queda así
 
 **Instalado y funcionando:**
 
-- Componentes de la Clase 1 en `~/mobile-pentesting-lab/`
+- Componentes de la Clase 1 en `~/mobile-owasp-lab/`
 - Servicio `insecurebankv2-server` activo y habilitado
 - Ayudantes `bank-*`, `clase1-prep`, `clase1-demo`, `vmconnect`, `mobsf-*`
 

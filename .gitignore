@@ -44,8 +44,8 @@ Poncio-Pilatus:*
 # =============================================================================
 # ARTEFACTOS DE LA INSTALACIÓN DEL LABORATORIO
 # =============================================================================
-# Todo lo que vive bajo LAB_DIR (por defecto ~/mobile-pentesting-lab).
-mobile-pentesting-lab/
+# Todo lo que vive bajo LAB_DIR (por defecto ~/mobile-owasp-lab).
+mobile-owasp-lab/
 lab/
 # APK: 3,4 MB y binaria. El instalador la descarga y verifica su SHA-256,
 # así que no tiene sentido versionarla aquí.

@@ -1,7 +1,7 @@
-# OWASP Mobile Top 10 — Curso de Pentesting Móvil
+# OWASP Mobile Top 10 — Curso de Análisis de Seguridad Móvil
 
-Laboratorio headless de pentesting móvil sobre **Ubuntu 24.04**, pensado para
-impartir el curso del **OWASP Mobile Top 10** con demostraciones en vivo.
+Laboratorio headless sobre **Ubuntu 24.04**, pensado para impartir el curso del
+**OWASP Mobile Top 10** con demostraciones en vivo.
 
 Todo el entorno se instala con **un único script**, pensado para servidores sin
 escritorio (SSH, sin X, sin monitor).
@@ -41,9 +41,18 @@ escritorio (SSH, sin X, sin monitor).
 
 **VM Android objetivo**
 
-- Android 8.1 (API 27) o superior, ABI `x86_64`
-- **ADB accesible por TCP** (por defecto `172.25.208.100:5555`)
-- Con acceso root por ADB (imagen AOSP sin Play Protect; ver abajo)
+| Requisito | Mínimo | Recomendado |
+|---|---|---|
+| Android | 8.1 (API 27) | 10.0 (API 29) o superior |
+| ABI | `x86_64` | `x86_64` |
+| ADB por TCP | Puerto 5555 abierto | Puerto 5555 abierto |
+| Root por ADB | `adb root` funciona | `adb root` funciona |
+| RAM | 2 GB | 4 GB |
+| Disco | 10 GB | 20 GB |
+| CPU | 2 vCPU | 4 vCPU |
+| Red | Misma L2 que el servidor | Misma L2 que el servidor |
+| Verificación USB | Desactivada | Desactivada |
+| Play Protect | Desactivado | Desactivado |
 
 El script **no** instala la VM Android: es un proyecto aparte. Si la VM no
 acepta `adb root`, hay que usar una imagen AOSP o desactivar la verificación.
@@ -176,7 +185,7 @@ conserva los objetos en todos los commits aunque los elimines después.
 ## Estructura del laboratorio instalado
 
 ```
-~/mobile-pentesting-lab/
+~/mobile-owasp-lab/
 ├── apps/apk/                  APKs de práctica
 ├── reports/
 │   ├── jadx/                  descompilaciones
@@ -207,7 +216,7 @@ sudo systemctl disable --now mobsf-server insecurebankv2-server
 sudo rm -f /usr/local/bin/{mobsf-*,bank-*,clase1-*,vmconnect}
 sudo rm -f /etc/systemd/system/{mobsf,insecurebankv2}-*.service
 sudo systemctl daemon-reload
-sudo rm -rf /etc/mobile-lab ~/mobile-pentesting-lab
+sudo rm -rf /etc/mobile-lab ~/mobile-owasp-lab
 ```
 
 Para quitar la app del móvil:

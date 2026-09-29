@@ -6,7 +6,7 @@ Por qué está montado así y qué alternativas se descartaron.
 
 ## 1. Principio rector
 
-Un laboratorio de pentesting móvil tiene una restricción que no tiene el de
+Un laboratorio de análisis móvil tiene una restricción que no tiene el de
 web: **el objetivo no es un fichero, es un dispositivo conectado por ADB**.
 
 Todo lo que rompa la conectividad entre el host y la VM, o la causa por la
@@ -44,7 +44,7 @@ oficial mantenida.
 | Puerto web | `8000` | Estándar de MobSF |
 | Proxy interno | `1337` → `${MOBSF_BIND_ADDR}` | Por defecto `0.0.0.0`, para que el dispositivo alcance el proxy de instrumentación. Antes era sólo `127.0.0.1`; ver la nota de abajo |
 | Interfaz de escucha | `MOBSF_BIND_ADDR` (por defecto `0.0.0.0`) | Una sola variable gobierna los dos puertos |
-| Datos | Bind mount a `~/mobile-pentesting-lab/mobsf` | Los informes sobreviven a la recreación del contenedor |
+| Datos | Bind mount a `~/mobile-owasp-lab/mobsf` | Los informes sobreviven a la recreación del contenedor |
 | `--add-host` | `host.docker.internal:host-gateway` | El healthcheck de la imagen hace `curl` a ese nombre, que sólo existe en Docker Desktop. Sin esta línea el contenedor se queda en `unhealthy` en Linux aunque sirva correctamente |
 | `--shm-size` | `1g` | Los análisis dinámicos se quedan sin `/dev/shm` por defecto y fallan |
 | UID | `9901` | Los ficheros de datos del contenedor son de otro usuario |

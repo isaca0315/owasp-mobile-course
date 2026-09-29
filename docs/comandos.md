@@ -143,8 +143,8 @@ adb logcat -d | grep "Successful Login"
 
 ```bash
 # Descompilar
-jadx ~/mobile-pentesting-lab/apps/apk/InsecureBankv2.apk \
-     -d ~/mobile-pentesting-lab/reports/jadx/InsecureBankv2
+jadx ~/mobile-owasp-lab/apps/apk/InsecureBankv2.apk \
+     -d ~/mobile-owasp-lab/reports/jadx/InsecureBankv2
 
 # La evidencia de M1
 grep -rn "secret key" InsecureBankv2/sources/com/android/insecurebankv2/

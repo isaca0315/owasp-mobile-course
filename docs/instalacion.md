@@ -16,16 +16,39 @@ Guía de principio a fin. Asume una máquina **Ubuntu 24.04** limpia.
 
 ### La VM Android
 
-**El instalador no la crea.** Es un componente aparte. Debe cumplir:
+**El instalador no la crea.** Es un componente aparte.
 
-| Requisito | Por qué |
+#### Requisitos mínimos
+
+| Requisito | Valor |
 |---|---|
-| ADB por TCP en `172.25.208.100:5555` | Canal de trabajo de todo el curso |
-| `adb root` funciona | Sin root no hay M2 real, ni MobSF dinámico, ni `frida-server` |
-| Android 8.1 (API 27) o superior | Recomendado |
-| Sin verificación de apps por USB | Si no, `adb install` falla |
+| Android | 8.1 (API 27) |
+| ABI | `x86_64` |
+| ADB por TCP | Puerto 5555 abierto |
+| Root por ADB | `adb root` funciona |
+| RAM | 2 GB |
+| Disco | 10 GB |
+| CPU | 2 vCPU |
+| Red | Misma L2 que el servidor |
+| Verificación USB | Desactivada |
+| Play Protect | Desactivado |
 
-Comprobación rápida antes de instalar nada:
+#### Requisitos recomendados
+
+| Requisito | Valor |
+|---|---|
+| Android | 10.0 (API 29) o superior |
+| ABI | `x86_64` |
+| ADB por TCP | Puerto 5555 abierto |
+| Root por ADB | `adb root` funciona |
+| RAM | 4 GB |
+| Disco | 20 GB |
+| CPU | 4 vCPU |
+| Red | Misma L2 que el servidor |
+| Verificación USB | Desactivada |
+| Play Protect | Desactivado |
+
+#### Comprobación rápida antes de instalar nada
 
 ```bash
 ping -c2 172.25.208.100
