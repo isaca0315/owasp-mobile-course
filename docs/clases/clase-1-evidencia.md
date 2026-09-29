@@ -310,6 +310,59 @@ $ sudo journalctl -u insecurebankv2-server -n 1
 
 **5 reinicios y se rinde**, con un estado limpio, en lugar de 149 infinitos.
 
+### Segunda corrección: el puerto que cambiaba de mentira
+
+El diagnóstico anterior ofrecía `bank-start 8889` como solución, pero el
+argumento **no hacía nada**: el puerto estaba fijo en `ExecStart` y el servicio
+seguía arrancando en 8888. El mensaje era correcto, la solución no.
+
+Ahora el puerto vive en `/etc/mobile-lab/bank.env` y systemd lo lee desde ahí,
+así que el argumento sí lo mueve. Verificado moviéndolo y comprobando que el
+puerto antiguo queda libre:
+
+```console
+$ bank-start 8899
+Backend InsecureBankv2 ACTIVO y respondiendo en el puerto 8899
+Recuerde reconfigurar la app con el mismo puerto:  clase1-prep 8899
+
+$ curl -s -X POST -d 'username=dinesh&password=Dinesh@123$' http://127.0.0.1:8899/login
+{"message": "Correct Credentials", "user": "dinesh"}
+```
+
+Al escribir el fichero de entorno apareció un error propio que conviene no
+repetir: **systemd no entiende la sintaxis de shell `${VAR:-defecto}`**, solo
+`$VAR` y `${VAR}`. La primera versión pasó el texto literal a Python y murió con
+`ValueError: invalid literal for int() with base 10: '${BANK_PORT:-8888}'`.
+Por eso el `EnvironmentFile` es obligatorio: si falta, systemd lo dice claro en
+vez de dejar un error de Python que no apunta a la causa.
+
+El diagnóstico de puerto ocupado también se corrigió: proponía un puerto fijo
+(8899) que podía ser justo el ocupado. Ahora busca uno libre:
+
+```console
+$ bank-start 8899        # con 8899 ocupado por un proceso ajeno
+El backend NO arranca. Diagnostico:
+  CAUSA: el puerto 8899 ya esta ocupado por otro proceso.
+  Solucion A:  sudo ss -ltnp | grep 8899
+              y detenga el proceso que lo ocupe.
+  Solucion B:  arrancar en el puerto 8890, que esta libre:
+              bank-start 8890   y luego  clase1-prep 8890
+```
+
+### Tercera corrección: «vivo» no es «respondiendo»
+
+`bank-start` y `bank-status` confirmaban el arranque con `systemctl is-active`,
+que solo dice que el proceso existe. Un backend vivo que devuelve 500 pasaba ese
+filtro y el instructor se encontraba con un `[ OK ]` y un login que no funciona.
+
+Ahora ambos preguntan al endpoint de verdad:
+
+```console
+$ bank-status
+Estado: ACTIVO (puerto 8888)
+Login:  OK (responde 'Correct Credentials')
+```
+
 ---
 
 ## 6. Limitaciones de esta prueba

@@ -73,11 +73,19 @@ adb connect 172.25.208.100:5555
 
 | Comando | Qué hace |
 |---|---|
-| `bank-start` | Arranca el backend de la app (puerto 8888) |
+| `bank-start [PUERTO]` | Arranca el backend de la app. Sin argumento usa 8888; con argumento cambia el puerto de verdad (lo escribe en `/etc/mobile-lab/bank.env`) |
 | `bank-stop` | Lo para |
-| `bank-status` | Estado y últimas líneas del log |
-| `clase1-prep` | Instala y configura el móvil para la clase (~30 s) |
+| `bank-status` | Estado, puerto y si el login responde de verdad |
+| `clase1-prep [PUERTO]` | Installa y configura el móvil para la clase (~30 s) |
 | `clase1-demo` | Repite la demo de M2 y M6 y guarda los informes |
+
+Si cambias el puerto del backend, reconfigura la app con el **mismo** número o
+el login fallará:
+
+```bash
+bank-start 8899
+clase1-prep 8899
+```
 
 ### Secuencia recomendada antes de la clase
 
