@@ -22,18 +22,22 @@
   - [1.1 Observar el login](#11-observar-el-login)
   - [1.2 Ataque de fuerza bruta](#12-ataque-de-fuerza-bruta)
   - [1.3 Bypass de autenticación con Frida](#13-bypass-de-autenticación-con-frida)
+  - [1.4 Análisis del endpoint de login](#14-análisis-del-endpoint-de-login)
 - [Fase 2 — M4: Criptografía insuficiente](#fase-2--m4-criptografía-insuficiente)
   - [2.1 La clave que no debería estar](#21-la-clave-que-no-debería-estar)
   - [2.2 El IV de dieciséis ceros](#22-el-iv-de-dieciséis-ceros)
   - [2.3 Descifrar las credenciales guardadas](#23-descifrar-las-credenciales-guardadas)
+  - [2.4 Análisis del modo de cifrado](#24-análisis-del-modo-de-cifrado)
 - [Fase 3 — M5: Comunicación insegura](#fase-3--m5-comunicación-insegura)
   - [3.1 Interceptar tráfico con Burp](#31-interceptar-tráfico-con-burp)
   - [3.2 Analizar el canal](#32-analizar-el-canal)
   - [3.3 Ataque Man-in-the-Middle](#33-ataque-man-in-the-middle)
+  - [3.4 Bypass de certificate pinning](#34-bypass-of-certificate-pinning)
 - [Fase 4 — M7: Calidad de código del cliente](#fase-4--m7-calidad-de-código-del-cliente)
   - [4.1 Código duplicado y sin ofuscar](#41-código-duplicado-y-sin-ofuscar)
   - [4.2 Manejo de errores deficiente](#42-manejo-de-errores-deficiente)
   - [4.3 Falta de validación de entradas](#43-falta-de-validación-de-entradas)
+  - [4.4 Fugas de memoria y condiciones de carrera](#44-fugas-de-memoria-y-condiciones-de-carrera)
 - [Cierre](#cierre)
 - [Anexo A — Referencias de código](#anexo-a--referencias-de-código)
 - [Anexo B — Comandos del laboratorio](#anexo-b--comandos-del-laboratorio)
@@ -216,6 +220,42 @@ frida -U -f com.android.insecurebankv2 -l hook_login.js --no-pause
 > con acceso al dispositivo puede modificar la app y saltarse la autenticación.
 > La regla es clara: **la autenticación debe validarse siempre en el servidor**.
 
+### 1.4 Análisis del endpoint de login
+
+Vamos a analizar el endpoint de login del backend para entender cómo funciona
+la autenticación.
+
+**En el código del backend:**
+
+```bash
+# Buscar el endpoint de login
+grep -n "login\|/login" ~/mobile-pentesting-lab/tools/InsecureBankv2Server/app.py
+```
+
+**Hallazgo:**
+
+```python
+@app.route('/login', methods=['POST'])
+def login():
+    username = request.form['username']
+    password = request.form['password']
+    # ... validación ...
+```
+
+**Problemas encontrados:**
+
+| Problema | Descripción |
+|---|---|
+| Sin rate limiting | No hay límite de intentos por minuto |
+| Sin bloqueo | No hay bloqueo tras N intentos fallidos |
+| Sin CAPTCHA | No hay verificación adicional |
+| Sin notificación | No hay notificación al usuario de intentos sospechosos |
+| Sin logging de intentos | No hay registro de intentos fallidos |
+
+> **¿Por qué es M3?** El endpoint de login no tiene ninguna medida de seguridad
+> adicional. Un atacante puede probar miles de contraseñas por minuto sin
+> ninguna consecuencia.
+
 ---
 
 ## Fase 2 — M4: Criptografía insuficiente
@@ -299,6 +339,41 @@ Dinesh@123$
 > - Claves generadas aleatoriamente y almacenadas en el Keystore
 > - IVs aleatorios para cada operación
 > - Modos de operación seguros (GCM, no CBC con IV constante)
+
+### 2.4 Análisis del modo de cifrado
+
+Vamos a analizar el modo de cifrado usado por la app.
+
+**En el código descompilado:**
+
+```bash
+grep -rn "AES\|CBC\|ECB\|GCM\|MODE" \
+  ~/mobile-pentesting-lab/reports/jadx/InsecureBankv2/sources/
+```
+
+**Hallazgo:**
+
+```java
+// CryptoClass.java
+Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+```
+
+**Problemas encontrados:**
+
+| Problema | Descripción |
+|---|---|
+| Modo CBC | Es vulnerable a ataques de padding oracle |
+| IV constante | Anula la confidencialidad del modo CBC |
+| Sin autenticación | No hay MAC para verificar la integridad |
+| Sin key stretching | No hay PBKDF2 o Argon2 para derivar claves |
+
+> **¿Por qué es M4?** El modo CBC con IV constante es vulnerable a ataques de
+> padding oracle. Un atacante puede descifrar el texto cifrado sin conocer la
+> clave. La criptografía real requiere:
+> - Modos de operación seguros (GCM, no CBC)
+> - IVs aleatorios para cada operación
+> - MAC para verificar la integridad
+> - Key stretching para derivar claves
 
 ---
 
@@ -384,6 +459,56 @@ la app la procesa sin ningún aviso.
 > - Modificar las respuestas del servidor
 > - Redirigir la app a un servidor malicioso
 
+### 3.4 Bypass de certificate pinning
+
+Aunque InsecureBankv2 no tiene certificate pinning, vamos a ver cómo se haría
+si lo tuviera.
+
+**¿Qué es certificate pinning?**
+
+Es una técnica de seguridad que consiste en «fijar» el certificado del servidor
+en la app. Así, aunque un atacante presente un certificado falso, la app lo
+rechazará.
+
+**¿Cómo se salta?**
+
+Con Frida, podemos hookar la función que verifica el certificado y hacer que
+siempre devuelva `true`.
+
+```javascript
+// bypass_pinning.js - Bypass de certificate pinning
+Java.perform(() => {
+    const X509TrustManager = Java.use("javax.net.ssl.X509TrustManager");
+    const SSLContext = Java.use("javax.net.ssl.SSLContext");
+
+    // Crear un TrustManager que no verifica nada
+    const TrustAllCerts = Java.registerClass({
+        name: "com.example.TrustAllCerts",
+        implements: [X509TrustManager],
+        methods: {
+            checkClientTrusted(chain, authType) {},
+            checkServerTrusted(chain, authType) {},
+            getAcceptedIssuers() { return []; }
+        }
+    });
+
+    // Reemplazar el TrustManager por defecto
+    const TrustManagers = [TrustAllCerts.$new()];
+    const SSLContextInstance = SSLContext.getInstance("TLS");
+    SSLContextInstance.init(null, TrustManagers, null);
+    SSLContext.setDefault(SSLContextInstance);
+
+    console.log("[+] Certificate pinning bypassed");
+});
+```
+
+> **¿Por qué es M5?** El certificate pinning es una defensa en profundidad.
+> Aunque la app use HTTPS, un atacante puede saltarse el pinning con Frida.
+> La solución es:
+> - Usar HTTPS con certificate pinning
+> - Verificar la integridad del código en tiempo de ejecución
+> - Usar técnicas anti-tampering
+
 ---
 
 ## Fase 4 — M7: Calidad de código del cliente
@@ -444,6 +569,23 @@ introducir caracteres especiales, SQL, o valores inesperados.
 > **¿Por qué es M7?** La falta de validación de entradas es la causa raíz de
 > muchos ataques: SQL injection, XSS, command injection, etc. Un código de
 > calidad valida todas las entradas antes de procesarlas.
+
+### 4.4 Fugas de memoria y condiciones de carrera
+
+**En el código descompilado:**
+
+```bash
+# Buscar fugas de memoria
+grep -rn "static\|final\|singleton" \
+  ~/mobile-pentesting-lab/reports/jadx/InsecureBankv2/sources/ | head -20
+```
+
+**Hallazgo:** Múltiples variables `static` que pueden causar fugas de memoria.
+
+> **¿Por qué es M7?** Las fugas de memoria pueden:
+> - Causar que la app se cierre inesperadamente
+> - Revelar información sensible en la memoria
+> - Permitir que un atacante explote condiciones de carrera
 
 ---
 

@@ -22,14 +22,17 @@
   - [1.1 Descompilar la APK](#11-descompilar-la-apk)
   - [1.2 Analizar el código](#12-analizar-el-código)
   - [1.3 Buscar secretos hardcodeados](#13-buscar-secretos-hardcodeados)
+  - [1.4 Análisis dinámico con Frida](#14-análisis-dinámico-con-frida)
 - [Fase 2 — M8: Code Tampering](#fase-2--m8-code-tampering)
   - [2.1 Modificar la APK](#21-modificar-la-apk)
   - [2.2 Reempaquetar y firmar](#22-reempaquetar-y-firmar)
   - [2.3 Instalar la APK modificada](#23-instalar-la-apk-modificada)
+  - [2.4 Modificar recursos de la APK](#24-modificar-recursos-de-la-apk)
 - [Fase 3 — M10: Funcionalidad extraña](#fase-3--m10-funcionalidad-extraña)
   - [3.1 Buscar funcionalidades ocultas](#31-buscar-funcionalidades-ocultas)
   - [3.2 Analizar permisos excesivos](#32-analizar-permisos-excesivos)
   - [3.3 Buscar backdoors](#33-buscar-backdoors)
+  - [3.4 Análisis de red de la app](#34-análisis-de-red-de-la-app)
 - [Cierre](#cierre)
 - [Anexo A — Referencias de código](#anexo-a--referencias-de-código)
 - [Anexo B — Comandos del laboratorio](#anexo-b--comandos-del-laboratorio)
@@ -194,6 +197,55 @@ InsecureBankv2/sources/com/android/insecurebankv2/CryptoClass.java:22:    String
 > cualquiera que descompile la APK. Android ofrece el **Keystore** para
 > almacenar secretos de forma segura, pero la app no lo usa.
 
+### 1.4 Análisis dinámico con Frida
+
+El análisis estático es útil, pero el análisis dinámico nos permite ver qué
+hace la app en tiempo de ejecución.
+
+**Script Frida para hookar el método de cifrado:**
+
+```javascript
+// hook_crypto.js - Análisis dinámico de la criptografía
+Java.perform(() => {
+    const CryptoClass = Java.use("com.android.insecurebankv2.CryptoClass");
+
+    // Hookar el método de cifrado
+    CryptoClass.encrypt.implementation = function (plaintext) {
+        console.log("[*] encrypt() llamado con:");
+        console.log("    plaintext: " + plaintext);
+        const result = this.encrypt(plaintext);
+        console.log("[+] encrypt() devolvió: " + result);
+        return result;
+    };
+
+    // Hookar el método de descifrado
+    CryptoClass.decrypt.implementation = function (ciphertext) {
+        console.log("[*] decrypt() llamado con:");
+        console.log("    ciphertext: " + ciphertext);
+        const result = this.decrypt(ciphertext);
+        console.log("[+] decrypt() devolvió: " + result);
+        return result;
+    };
+
+    console.log("[*] Hooks de criptografía instalados.");
+});
+```
+
+**Ejecutar el hook:**
+
+```bash
+frida -U -f com.android.insecurebankv2 -l hook_crypto.js --no-pause
+```
+
+**En la app:**
+1. Abrir InsecureBankv2
+2. Hacer login con cualquier credencial
+3. Observar la salida de Frida
+
+> **¿Por qué es M9?** El análisis dinámico nos permite ver qué hace la app en
+> tiempo de ejecución. Podemos ver las claves, los datos en claro, y el
+> comportamiento de la app.
+
 ---
 
 ## Fase 2 — M8: Code Tampering
@@ -313,6 +365,37 @@ clase1-prep
 > - Integridad del código en tiempo de ejecución
 > - Ofuscación del código
 
+### 2.4 Modificar recursos de la APK
+
+Además de modificar el código, también podemos modificar los recursos de la APK.
+
+**Modificar el icono de la app:**
+
+```bash
+# Reemplazar el icono
+cp ~/mobile-pentesting-lab/reports/icono_falso.png \
+  ~/mobile-pentesting-lab/reports/InsecureBankv2_mod/res/drawable-hdpi/ic_launcher.png
+
+# Reempaquetar
+apktool b ~/mobile-pentesting-lab/reports/InsecureBankv2_mod \
+  -o ~/mobile-pentesting-lab/reports/InsecureBankv2_mod.apk
+```
+
+**Modificar el nombre de la app:**
+
+```bash
+# Editar el archivo strings.xml
+nano ~/mobile-pentesting-lab/reports/InsecureBankv2_mod/res/values/strings.xml
+```
+
+```xml
+<!-- Cambiar el nombre de la app -->
+<string name="app_name">Banco Seguro</string>
+```
+
+> **¿Por qué es M8?** Un atacante puede modificar los recursos de la APK para
+> hacer que parezca una app legítima. Esto es útil para ataques de phishing.
+
 ---
 
 ## Fase 3 — M10: Funcionalidad extraña
@@ -392,6 +475,33 @@ grep -rniE "/admin|/manage|/config|/setup" \
 > forma no autorizada. Pueden ser credenciales hardcodeadas, endpoints de
 > administración, o funcionalidades de depuración.
 
+### 3.4 Análisis de red de la app
+
+Vamos a analizar el tráfico de red de la app para buscar funcionalidades ocultas.
+
+**Capturar el tráfico de red:**
+
+```bash
+# En el servidor: capturar el tráfico
+sudo tcpdump -i any -w ~/mobile-pentesting-lab/reports/captura.pcap host 172.25.208.100
+```
+
+**En la app:**
+1. Abrir InsecureBankv2
+2. Hacer login
+3. Navegar por la app
+
+**Analizar la captura:**
+
+```bash
+# Ver las conexiones de la app
+tshark -r ~/mobile-pentesting-lab/reports/captura.pcap -Y "http"
+```
+
+> **¿Por qué es M10?** El análisis de red nos permite ver qué servidores contacta
+> la app. Podemos descubrir funcionalidades ocultas, endpoints de administración,
+> o conexiones a servidores maliciosos.
+
 ---
 
 ## Cierre
@@ -452,6 +562,9 @@ jadx ~/mobile-pentesting-lab/apps/apk/InsecureBankv2.apk -d InsecureBankv2
 grep -rniE "secret|key|token|password|api" \
   ~/mobile-pentesting-lab/reports/jadx/InsecureBankv2/sources/ | head -30
 
+# M9: análisis dinámico con Frida
+frida -U -f com.android.insecurebankv2 -l hook_crypto.js --no-pause
+
 # M8: descompilar con apktool
 cd ~/mobile-pentesting-lab/reports/
 apktool d ~/mobile-pentesting-lab/apps/apk/InsecureBankv2.apk -o InsecureBankv2_mod
@@ -476,4 +589,8 @@ aapt dump permissions ~/mobile-pentesting-lab/apps/apk/InsecureBankv2.apk
 # M10: buscar funcionalidades ocultas
 grep -rniE "admin|root|backdoor|master|superuser" \
   ~/mobile-pentesting-lab/reports/jadx/InsecureBankv2/sources/ | head -20
+
+# M10: análisis de red
+sudo tcpdump -i any -w ~/mobile-pentesting-lab/reports/captura.pcap host 172.25.208.100
+tshark -r ~/mobile-pentesting-lab/reports/captura.pcap -Y "http"
 ```
