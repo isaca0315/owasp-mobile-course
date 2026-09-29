@@ -1,0 +1,108 @@
+# =============================================================================
+# CLAVES Y SECRETOS — NUNCA deben subirse a un repositorio
+# =============================================================================
+*.pem
+*.pem.*
+*.key
+*.key.*
+*.p12
+*.pfx
+*.jks
+*.keystore
+# 'id_*' y no los nombres literales: una llave renombrada
+# (id_rsa_test, github_deploy) también debe quedar fuera.
+id_rsa*
+id_dsa*
+id_ecdsa*
+id_ed25519*
+id_*
+github*
+deploy*
+*.pub
+.ssh/
+authorized_keys
+known_hosts
+.env
+.env.*
+secrets/
+*_rsa
+*_ed25519
+*.token
+*.secret
+*.secret.*
+*credentials*
+*.creds
+*.netrc
+.netrc
+netrc
+**/.env
+
+# Ficheros que el agente podría pegar por error desde ~/.ssh
+poncio@*
+Poncio-Pilatus:*
+
+# =============================================================================
+# ARTEFACTOS DE LA INSTALACIÓN DEL LABORATORIO
+# =============================================================================
+# Todo lo que vive bajo LAB_DIR (por defecto ~/mobile-pentesting-lab).
+mobile-pentesting-lab/
+lab/
+# APK: 3,4 MB y binaria. El instalador la descarga y verifica su SHA-256,
+# así que no tiene sentido versionarla aquí.
+*.apk
+*.aab
+*.dex
+
+# Informes generados por las clases y por MobSF
+reports/
+*.report
+*.html.report
+
+# Datos persistentes de MobSF (puede contener APKs y datos de análisis)
+mobsf/
+mobsf-data/
+*.sqlite3
+*.db-journal
+*.db-wal
+
+# =============================================================================
+# ENTORNOS VIRTUALES Y DEPENDENCIAS DE PYTHON
+# =============================================================================
+venv/
+.venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# =============================================================================
+# BACKEND DE INSECUREBANKV2 (Clase 1)
+# =============================================================================
+# venv/ ya está excluido arriba. mydb.db es la base de datos sembrada del
+# backend: se descarga y se regenera con el instalador.
+tools/InsecureBankv2Server/
+*.db
+
+# =============================================================================
+# DESCARGAS Y TEMPORALES
+# =============================================================================
+*.part
+*.tmp
+*.swp
+*.bak
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Salidas de herramientas
+jadxout/
+jadx/
+burp-report
+*.log
+nohup.out
