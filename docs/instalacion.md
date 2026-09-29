@@ -115,7 +115,10 @@ clase1-prep     # instala y configura el móvil (~30 s)
 clase1-demo     # repite la demo de M2 y M6
 ```
 
-El guion está en [`clases/clase-1-owasp-mobile-top10.md`](clases/clase-1-owasp-mobile-top10.md).
+El guion de la clase, paso a paso:
+
+- [`clases/clase-1-owasp-mobile-top10.md`](clases/clase-1-owasp-mobile-top10.md)
+- [`clases/clase-1-evidencia.md`](clases/clase-1-evidencia.md)
 
 ---
 
