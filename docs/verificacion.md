@@ -191,7 +191,48 @@ AES.new(b"This is the super secret key 123", AES.MODE_CBC, b"\x00"*16) \
 
 ---
 
-## 7. Análisis estático del script — VERIFICADO
+## 7. Segunda ejecución completa de la clase — VERIFICADO
+
+El 29 de septiembre de 2026 se repitió la clase entera de principio a fin con
+`systemd` real en el servidor. Transcripción completa en
+[`clases/clase-1-evidencia.md`](clases/clase-1-evidencia.md).
+
+| Fase | Estado | Notas |
+|---|---|---|
+| Instalación de componentes | OK | `class1_app`, `class1_backend`, `class1_helpers`, `class1_runbook` |
+| Arranque del backend vía systemd | OK | `active`, escuchando en `0.0.0.0:8888` |
+| `bank-start` | OK | Diagnóstico correcto cuando falla |
+| `clase1-prep` | OK | App desinstalada y reinstalada desde cero |
+| Login real → **M6** | OK | `D Successful Login:: , account=dinesh:Dinesh@123$` |
+| Extracción de la BD → **M2** | OK | `mydb`, tabla `names` con `dinesh` |
+| `SharedPreferences` | OK | `superSecurePassword` y `EncryptedUsername` |
+| Descompilación con JADX | OK | 2291 clases |
+| **M1** clave e IV | OK | `CryptoClass.java:22` y `:23` |
+| Descifrado M1 → M2 | OK | Devuelve `Dinesh@123$` |
+| Extra: Base64, no cifrado | OK | `ZGluZXNo` → `dinesh` |
+| `clase1-demo` | OK | Código de salida 0 |
+| **Fase 1 (MobSF)** | **NO** | El demonio de Docker no es accesible en la máquina de pruebas |
+
+### Fallo encontrado y corregido en esta ejecución
+
+El servicio del backend entró en un **bucle de 149 reinicios en 5 minutos**.
+Causa: el puerto 8888 estaba ocupado por otro proceso, `bind()` fallaba con
+`Errno 98`, y `Restart=on-failure` no tenía tope. El instructor se habría
+quedado sin diagnóstico y con el journal inundado.
+
+Corregido con tres medidas, todas verificadas:
+
+1. `StartLimitIntervalSec=60` y `StartLimitBurst=5` en la unidad systemd.
+2. Aviso en el instalador si el puerto ya está ocupado, indicando el proceso.
+3. Diagnóstico explícito en `bank-start` cuando el arranque falla.
+
+Comprobación reproducing el fallo con el puerto ocupado a propósito: el
+servicio hace **5 reinicios y se rinde** con estado `failed` limpio, frente a
+los 149 anteriores.
+
+---
+
+## 8. Análisis estático del script — VERIFICADO
 
 | Comprobación | Resultado |
 |---|---|
@@ -204,7 +245,7 @@ AES.new(b"This is the super secret key 123", AES.MODE_CBC, b"\x00"*16) \
 
 ---
 
-## 8. Lo que **NO** está verificado
+## 9. Lo que **NO** está verificado
 
 Conviene decirlo con claridad:
 
@@ -212,9 +253,11 @@ Conviene decirlo con claridad:
    22.04 limpio.** Se ha probado por partes, nunca de forma integrada. Un
    fallo de orden entre componentes sólo aparecería en esa ejecución.
 
-2. **El arranque real de MobSF en Docker.** La imagen, el usuario UID 9901, el
-   bind mount y `--shm-size` están configurados según la documentación, pero no
-   se ha observado un contenedor levantar y aceptar un análisis.
+2. **El arranque real de MobSF en Docker, y con ello la Fase 1 de la Clase 1.**
+   La imagen, el usuario UID 9901, el bind mount y `--shm-size` están
+   configurados según la documentación, pero no se ha observado un contenedor
+   levantar y aceptar un análisis. En la máquina de pruebas el demonio de
+   Docker no era accesible.
 
 3. **El instalador de Burp (`install4j`).** El flag `-q` está puesto porque sin
    él se cuelga, pero la instalación real no se ha ejecutado.
@@ -235,19 +278,34 @@ divergencia se detecta comparando contra lo que hay en el documento.
 
 ---
 
-## 9. Entorno de pruebas: estado actual
+## 10. Estado de la máquina de pruebas
 
-La máquina de pruebas se dejó limpia:
+Tras la segunda ejecución, la máquina de pruebas (`172.25.208.104`) queda así:
 
-- Ayudantes de prueba eliminados de `/usr/local/bin`
-- `/etc/mobile-lab` y `/root/mobile-pentesting-lab` eliminados
-- Bloque de variables de prueba retirado de `/etc/bash.bashrc`
-- Backends de prueba detenidos
+**Instalado y funcionando:**
 
-**Nota:** la app **sí** quedó instalada y configurada en la VM
-`172.25.208.100`, que es lo que hace falta para la clase. Para dejarla
-completamente limpia:
+- Componentes de la Clase 1 en `~/mobile-pentesting-lab/`
+- Servicio `insecurebankv2-server` activo y habilitado
+- Ayudantes `bank-*`, `clase1-prep`, `clase1-demo`, `vmconnect`, `mobsf-*`
+
+**En la VM `172.25.208.100`:**
+
+- `InsecureBankv2` instalada, configurada apuntando a `172.25.208.104:8888`
+- Base de datos `mydb` con un registro (`dinesh`) en la tabla `names`
+- Credenciales guardadas en las `SharedPreferences`
+- El log de M6 está en el búfer del sistema
+
+Para dejar la VM completamente limpia:
 
 ```bash
 adb -s 172.25.208.100:5555 uninstall com.android.insecurebankv2
+```
+
+Para retirar los servicios de esta máquina:
+
+```bash
+sudo systemctl disable --now insecurebankv2-server
+sudo rm -f /usr/local/bin/{bank-*,clase1-*}
+sudo rm -f /etc/systemd/system/insecurebankv2-server.service
+sudo systemctl daemon-reload
 ```

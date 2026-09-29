@@ -56,6 +56,13 @@ PREPARACIÓN (20 min antes de empezar)
            http://127.0.0.1:8888/login
       # debe devolver: {"message": "Correct Credentials", "user": "dinesh"}
 
+  Si bank-start dice que el puerto 8888 está ocupado:
+      sudo ss -ltnp | grep 8888          # ver quién lo tiene
+      sudo systemctl stop insecurebankv2-server
+      bank-start                        # y reintentar
+  Sin backend no hay login, y sin login no hay log de M6: la mitad de la
+  clase depende de este paso.
+
   Credenciales:  dinesh / Dinesh@123$        jack / Jack@123$
                  devadmin / devadmin           (entra por /devlogin)
 

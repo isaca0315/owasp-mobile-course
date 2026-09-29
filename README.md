@@ -8,45 +8,24 @@ escritorio (SSH, sin X, sin monitor).
 
 ---
 
-## Índice
+## Documentación
 
 | Documento | Contenido |
 |---|---|
-| [`setup-mobile-pentest-lab.sh`](setup-mobile-pentest-lab.sh) | Instalador único del laboratorio |
-| [`docs/CLASE1-OWASP-Mobile-Top10.md`](docs/CLASE1-OWASP-Mobile-Top10.md) | **Guion de la Clase 1** (M1, M2, M6) con salidas reales verificadas |
-| [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) | Qué se instala, por qué, y qué alternativas se descartaron |
-| [`docs/COMANDOS.md`](docs/COMANDOS.md) | Catálogo de todos los comandos del laboratorio |
-| [`docs/VERIFICACION.md`](docs/VERIFICACION.md) | Qué se ha probado de verdad y qué no |
+| [`docs/instalacion.md`](docs/instalacion.md) | Instalación de principio a fin, requisitos y comprobaciones |
+| [`docs/arquitectura.md`](docs/arquitectura.md) | Qué se instala, por qué, y qué alternativas se descartaron |
+| [`docs/comandos.md`](docs/comandos.md) | Catálogo de todos los comandos del laboratorio |
+| [`docs/troubleshooting.md`](docs/troubleshooting.md) | Problemas frecuentes: síntoma, causa y solución |
+| [`docs/verificacion.md`](docs/verificacion.md) | Qué se ha probado de verdad y qué no |
+| [`setup-mobile-pentest-lab.sh`](setup-mobile-pentest-lab.sh) | El instalador |
 
----
+### Clases
 
-## Inicio rápido
-
-```bash
-git clone git@github.com:isaca0315/owasp-mobile-course.git
-cd owasp-mobile-course
-
-# 1) Instalar el laboratorio completo
-sudo ./setup-mobile-pentest-lab.sh
-
-# 2) Arrancar MobSF (Docker, puerto 8000)
-mobsf-start
-
-# 3) Conectar con la VM Android y activar root
-vmconnect
-```
-
-Para la **Clase 1**:
-
-```bash
-bank-start      # backend de InsecureBankv2 (puerto 8888)
-clase1-prep     # instala y configura el móvil (~30 s)
-clase1-demo     # repite la demo de M2 y M6
-```
-
-El guion completo está en [`docs/CLASE1-OWASP-Mobile-Top10.md`](docs/CLASE1-OWASP-Mobile-Top10.md)
-y también se copia al laboratorio tras instalarlo, en
-`~/mobile-pentesting-lab/CLASE1-OWASP-Mobile-Top10.md`.
+| Clase | Documento | Estado |
+|---|---|---|
+| **1** — OWASP Mobile Top 10: M1, M2, M6 | [`docs/clases/clase-1-owasp-mobile-top10.md`](docs/clases/clase-1-owasp-mobile-top10.md) | Guion listo, verificado de extremo a extremo |
+| | [`docs/clases/clase-1-evidencia.md`](docs/clases/clase-1-evidencia.md) | Transcripción real de la prueba |
+| 2 — M3, M5 | *pendiente* | Requiere Burp y `frida-server` |
 
 ---
 
@@ -154,7 +133,7 @@ sudo journalctl -u mobsf-server -f
 docker ps | docker logs -f mobsf
 ```
 
-Catálogo completo en [`docs/COMANDOS.md`](docs/COMANDOS.md).
+Catálogo completo en [`docs/comandos.md`](docs/comandos.md).
 
 ---
 
@@ -239,12 +218,17 @@ adb -s 172.25.208.100:5555 uninstall com.android.insecurebankv2
 
 ## Estado de verificación
 
-Resumen honesto, en detalle en [`docs/VERIFICACION.md`](docs/VERIFICACION.md):
+Resumen honesto, en detalle en [`docs/verificacion.md`](docs/verificacion.md):
 
-- **Verificado contra una VM real** (API 27, `x86_64`, root por ADB):
-  conectividad, `vmconnect`, instalación de la APK, login real de InsecureBankv2,
-  extracción de la base de datos, log de M6 en `logcat`, descifrado de M1→M2,
-  y los ayudantes `bank-*`, `clase1-prep` y `clase1-demo`.
+- **Clase 1 verificada de extremo a extremo** contra una VM real (API 27,
+  `x86_64`, root por ADB) y con `systemd` real: instalación de los componentes,
+  `bank-start`, `clase1-prep`, login real de InsecureBankv2, log de M6 en
+  `logcat`, extracción y lectura de la base de datos, `SharedPreferences`,
+  descompilación con JADX y descifrado M1→M2. Transcripción completa en
+  [`docs/clases/clase-1-evidencia.md`](docs/clases/clase-1-evidencia.md).
+- **Corregido durante esa prueba:** el backend entraba en un bucle de 149
+  reinicios si el puerto 8888 estaba ocupado. Ahora lleva tope de reinicios,
+  aviso previo y diagnóstico. Verificado reproducciendo el fallo.
 - **Verificado estáticamente**: sintaxis, `shellcheck` en nivel `style`, todas
   las URLs y versiones, y los ficheros que el script genera.
 - **No verificado de forma integrada**: la instalación completa del script
