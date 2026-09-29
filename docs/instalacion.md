@@ -1,6 +1,6 @@
 # Instalación
 
-Guía de principio a fin. Asume una máquina **Ubuntu 22.04** limpia.
+Guía de principio a fin. Asume una máquina **Ubuntu 24.04** limpia.
 
 ---
 
@@ -8,7 +8,7 @@ Guía de principio a fin. Asume una máquina **Ubuntu 22.04** limpia.
 
 | Elemento | Requisito |
 |---|---|
-| SO | Ubuntu 22.04 (o derivados) |
+| SO | Ubuntu 24.04 (o derivados) |
 | CPU / RAM / Disco | 4 vCPU, 8 GB RAM, 40 GB libres |
 | Privilegios | `sudo` |
 | Red | Salida a Internet y a la VM Android |
@@ -168,6 +168,6 @@ sudo ./setup-mobile-pentest-lab.sh --no-docker
 ```
 
 MobSF se instala en un venv de Python, versión **4.3.2** (la última compatible
-con Python 3.10 de Ubuntu 22.04). El acceso dinámico a dispositivos **no**
+con Python 3.12 de Ubuntu 24.04). El acceso dinámico a dispositivos **no**
 funciona en modo nativo; se documenta en
 [`arquitectura.md`](arquitectura.md).

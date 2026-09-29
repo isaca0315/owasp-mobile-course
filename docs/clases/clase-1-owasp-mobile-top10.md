@@ -26,11 +26,11 @@
 
 ## Antes de impartir la clase
 
-> ⚠️ **El guion original de esta clase tenía cuatro fallos que rompían la
-> demostración en directo.** Los cuatro están corregidos aquí, y todos se
-> verificaron ejecutándolos contra el dispositivo.
+> **Estado del documento:** verificado de extremo a extremo contra una VM
+> real. Las salidas marcadas como «salida real» fueron capturadas durante la
+> sesión de verificación.
 
-### Los cuatro fallos del guion original
+### Correcciones respecto a guiones anteriores
 
 #### 1. El nombre de la base de datos era incorrecto
 
@@ -88,7 +88,7 @@ sólo se emite cuando el servidor responde `"Correct Credentials"`.
 > **Sin backend, la mitad de la clase no se puede demostrar.**
 
 El backend oficial (`AndroLabServer`) es **Python 2** y no arranca en Ubuntu
-22.04. El instalador del laboratorio lo porta a Python 3 automáticamente.
+24.04. El instalador del laboratorio lo porta a Python 3 automáticamente.
 
 #### Además: la verificación de apps por USB
 

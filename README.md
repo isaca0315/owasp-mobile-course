@@ -1,6 +1,6 @@
 # OWASP Mobile Top 10 — Curso de Pentesting Móvil
 
-Laboratorio headless de pentesting móvil sobre **Ubuntu 22.04**, pensado para
+Laboratorio headless de pentesting móvil sobre **Ubuntu 24.04**, pensado para
 impartir el curso del **OWASP Mobile Top 10** con demostraciones en vivo.
 
 Todo el entorno se instala con **un único script**, pensado para servidores sin
@@ -23,15 +23,15 @@ escritorio (SSH, sin X, sin monitor).
 
 | Clase | Documento | Estado |
 |---|---|---|
-| **1** — OWASP Mobile Top 10: M1, M2, M6 | [`docs/clases/clase-1-owasp-mobile-top10.md`](docs/clases/clase-1-owasp-mobile-top10.md) | Guion listo, verificado de extremo a extremo |
+| **1** — OWASP Mobile Top 10: M1, M2, M6 | [`docs/clases/clase-1-owasp-mobile-top10.md`](docs/clases/clase-1-owasp-mobile-top10.md) | Guion verificado de extremo a extremo |
 | | [`docs/clases/clase-1-evidencia.md`](docs/clases/clase-1-evidencia.md) | Transcripción real de la prueba |
-| 2 — M3, M5 | *pendiente* | Requiere Burp y `frida-server` |
+| **2** — M3, M5 | [`docs/clases/clase-2-owasp-mobile-top10.md`](docs/clases/clase-2-owasp-mobile-top10.md) | Guion preparado, pendiente de verificar en VM |
 
 ---
 
 ## Requisitos
 
-**Servidor (Ubuntu 22.04)**
+**Servidor (Ubuntu 24.04)**
 
 - 4 vCPU, 8 GB RAM, 40 GB de disco libre
 - `sudo`
@@ -110,7 +110,7 @@ por TCP: dentro de un contenedor no functionaría sin `network_mode: host` y
 montar el socket, lo que añade complejidad sin ganancia.
 
 Con `--no-docker` el script instala MobSF de forma nativa en un venv
-(`v4.3.2`, la última compatible con Python 3.10 de Ubuntu 22.04).
+(`v4.3.2`, la última compatible con Python 3.10; en Ubuntu 24.04 con Python 3.12 puedes usar `v4.5.3` o superior).
 
 ---
 
@@ -233,6 +233,6 @@ Resumen honesto, en detalle en [`docs/verificacion.md`](docs/verificacion.md):
 - **Verificado estáticamente**: sintaxis, `shellcheck` en nivel `style`, todas
   las URLs y versiones, y los ficheros que el script genera.
 - **No verificado de forma integrada**: la instalación completa del script
-  sobre un Ubuntu 22.04 limpio, el arranque real de MobSF en Docker y el
+  sobre un Ubuntu 24.04 limpio, el arranque real de MobSF en Docker y el
   instalador de Burp. Antes de impartir la primera clase, conviene ejecutar el
   script una vez de principio a fin sobre el servidor definitivo.

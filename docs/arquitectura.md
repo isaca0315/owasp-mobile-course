@@ -67,7 +67,7 @@ oficial mantenida.
 
 Con `--no-docker` o `--mobsf-native` el script instala MobSF en un venv de
 Python. Se fija la **v4.3.2** porque es la última que funciona con Python 3.10
-de Ubuntu 22.04; las versiones nuevas requieren 3.11+.
+de Ubuntu 24.04; las versiones nuevas requieren 3.12+.
 
 ### Autenticación dinámica
 

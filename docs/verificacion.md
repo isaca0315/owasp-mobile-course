@@ -93,7 +93,7 @@ anula la confidencialidad. No aparece en la mayoría de guías de esta app.
 ## 4. Backend de InsecureBankv2 — VERIFICADO
 
 El backend oficial (`AndroLabServer`) **es Python 2** y no arranca en Ubuntu
-22.04. Errores reales encontrados:
+24.04. Errores reales encontrados:
 
 ```
 SyntaxError: Missing parentheses in call to 'print'
@@ -277,7 +277,7 @@ los 149 anteriores.
 Conviene decirlo con claridad:
 
 1. **La instalación completa del script, de principio a fin, sobre un Ubuntu
-   22.04 limpio.** Se ha probado por partes, nunca de forma integrada. Un
+   24.04 limpio.** Se ha probado por partes, nunca de forma integrada. Un
    fallo de orden entre componentes sólo aparecería en esa ejecución.
 
 2. **El arranque real de MobSF en Docker, y con ello la Fase 1 de la Clase 1.**
