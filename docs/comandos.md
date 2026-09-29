@@ -22,8 +22,9 @@ cualquier usuario del sistema.
 mobsf-logs          # esperar a "Gunicorn server started"
 ```
 
-> El proxy interno de MobSF escucha en el puerto 1337 **sólo en `127.0.0.1`**.
-> Es deliberado: publicarlo convertiría el servidor en un proxy abierto.
+> El proxy interno de MobSF (puerto 1337) se publica en `MOBSF_BIND_ADDR`, que
+> por defecto es `0.0.0.0` para que el dispositivo Android alcance el análisis
+> dinámico. Instálalo con `MOBSF_BIND_ADDR=127.0.0.1` para dejarlo sólo local.
 
 ---
 

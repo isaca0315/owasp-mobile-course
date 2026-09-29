@@ -318,10 +318,17 @@ Lo que **no** se ha podido verificar aquí:
 
 | Elemento | Motivo |
 |---|---|
-| Fase 1 (MobSF) | El demonio de Docker no es accesible en la máquina de pruebas |
 | Instalación completa del script | Se ejecutó la sección de la Clase 1, no el flujo entero |
 | Burp Suite e `install4j` | Fuera del alcance de la Clase 1 |
 | Clases 2 en adelante | No escritas todavía |
+
+La **Fase 1 (MobSF)** se verificó después, cuando el demonio de Docker
+arrancó. Quedó `healthy` y accesible desde la VM en `0.0.0.0:8000`. Esa
+verificación destapó un segundo fallo: el healthcheck de la imagen oficial
+hace `curl host.docker.internal`, que sólo resuelve en Docker Desktop, así
+que en Linux el contenedor se marcaba `unhealthy` para siempre aunque
+funcionara. Se corrige con `--add-host host.docker.internal:host-gateway`.
+Los detalles están en [`verificacion.md`](../verificacion.md).
 
 Todo lo de la Fase 2 y la Fase 3 **sí** está verificado de extremo a extremo,
 con salidas reales, no de documentación de terceros.

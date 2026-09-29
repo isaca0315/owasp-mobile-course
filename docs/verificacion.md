@@ -211,7 +211,34 @@ El 29 de septiembre de 2026 se repitió la clase entera de principio a fin con
 | Descifrado M1 → M2 | OK | Devuelve `Dinesh@123$` |
 | Extra: Base64, no cifrado | OK | `ZGluZXNo` → `dinesh` |
 | `clase1-demo` | OK | Código de salida 0 |
-| **Fase 1 (MobSF)** | **NO** | El demonio de Docker no es accesible en la máquina de pruebas |
+| **Fase 1 (MobSF)** | OK | Contenedor `healthy`, web en `0.0.0.0:8000` alcanzable desde la VM |
+
+### Fase 1 (MobSF): verificada en una segunda ejecución
+
+El demonio de Docker, que había estado inaccesible durante toda la prueba
+anterior, arrancó sin incidencias. Con él se completó la fase que quedaba
+pendiente:
+
+| Comprobación | Resultado | Detalle |
+|---|---|---|
+| `systemctl start docker` | OK | Demonio activo |
+| `mobsf-server` | OK | Contenedor `mobsf` en estado `healthy` |
+| Web en `8000` desde la IP del host | OK | `HTTP 302` en `http://172.25.208.104:8000/` |
+| Web en `8000` desde la VM Android | OK | Conexión TCP desde `172.25.208.100` |
+| Prueba de control (puerto 9999) | OK | Rechazada, confirma que la prueba anterior no es un falso positivo |
+
+**Segundo fallo encontrado y corregido.** MobSF se quedaba permanentemente en
+`unhealthy` sin estar caído. La causa no era MobSF: el healthcheck de la imagen
+oficial hace `curl host.docker.internal`, un nombre que sólo resuelve en Docker
+Desktop. En Linux el `curl` fallaba con `Could not resolve host` y el contenedor
+se marcaba como unhealthy para siempre. Se resuelve con
+`--add-host host.docker.internal:host-gateway`. Tras el cambio el healthcheck
+pasa y el contenedor queda `healthy`.
+
+Este fallo era invisible antes: mientras el demonio de Docker no arrancaba, el
+contenedor tampoco existía, así que nunca se vio el healthcheck roto. Es un
+buen argumento para no dar por buena ninguna comprobación que no se haya
+ejecutado de verdad.
 
 ### Fallo encontrado y corregido en esta ejecución
 

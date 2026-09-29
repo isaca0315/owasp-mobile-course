@@ -42,11 +42,26 @@ oficial mantenida.
 |---|---|---|
 | Imagen | `opensecurity/mobile-security-framework-mobsf` | Oficial |
 | Puerto web | `8000` | Estándar de MobSF |
-| Proxy interno | `1337` → **sólo `127.0.0.1`** | Publicarlo convertiría el servidor en un proxy abierto |
+| Proxy interno | `1337` → `${MOBSF_BIND_ADDR}` | Por defecto `0.0.0.0`, para que el dispositivo alcance el proxy de instrumentación. Antes era sólo `127.0.0.1`; ver la nota de abajo |
+| Interfaz de escucha | `MOBSF_BIND_ADDR` (por defecto `0.0.0.0`) | Una sola variable gobierna los dos puertos |
 | Datos | Bind mount a `~/mobile-pentesting-lab/mobsf` | Los informes sobreviven a la recreación del contenedor |
+| `--add-host` | `host.docker.internal:host-gateway` | El healthcheck de la imagen hace `curl` a ese nombre, que sólo existe en Docker Desktop. Sin esta línea el contenedor se queda en `unhealthy` en Linux aunque sirva correctamente |
 | `--shm-size` | `1g` | Los análisis dinámicos se quedan sin `/dev/shm` por defecto y fallan |
 | UID | `9901` | Los ficheros de datos del contenedor son de otro usuario |
 | Reinicio | `unless-stopped` + `systemd` | Sobrevive a reinicios del servidor |
+
+> [!WARNING]
+> **Publicar el puerto 1337 es una decisión de confianza, no un detalle.**
+> MobSF lo usa como proxy de instrumentación para el análisis dinámico. Escucharlo
+> en `0.0.0.0` lo convierte en un proxy alcanzable desde toda la red del
+> laboratorio, que es lo que un alumno necesita para conectar desde el dispositivo
+> Android, pero también lo expone a cualquiera que llegue a esa red. El proyecto
+> lo tenía atado a `127.0.0.1` de forma deliberada. Si el servidor no está en una
+> red de confianza, instálalo con:
+>
+> ```bash
+> MOBSF_BIND_ADDR=127.0.0.1 ./setup-mobile-pentest-lab.sh
+> ```
 
 ### Fallback nativo
 

@@ -58,6 +58,7 @@ ANDROID_VM_IP=172.25.208.100    # IP de la VM Android
 ANDROID_VM_PORT=5555            # Puerto ADB
 ANDROID_PLATFORM=android-28     # Plataforma del SDK a instalar
 MOBSF_DOCKER_TAG=latest         # Tag de la imagen de MobSF
+MOBSF_BIND_ADDR=0.0.0.0         # Interfaz de escucha de MobSF (1337 y 8000)
 ```
 
 ```bash
@@ -93,7 +94,7 @@ sudo ./setup-mobile-pentest-lab.sh --skip-burp --skip-frida --no-upgrade
 | Componente | Cómo | Notas |
 |---|---|---|
 | Android SDK | Nativo | Command line tools 13114758, `platform-tools`, `build-tools;33.0.2` |
-| MobSF | **Docker** | Imagen oficial, puerto 8000, proxy interno ligado a `127.0.0.1` |
+| MobSF | **Docker** | Imagen oficial, puerto 8000, todo en `0.0.0.0` (`MOBSF_BIND_ADDR`) |
 | JADX | Nativo | CLI `jadx` y `jadx-gui` (1.5.6) |
 | Burp Suite Community | Nativo | Instalador `install4j` desatendido, puerto 8080 |
 | Frida | Nativo | `frida-tools` en el servidor; `frida-server` se instala en la VM |
@@ -160,7 +161,7 @@ Cámbialas antes de usar el laboratorio con datos reales.
 | 8000 | MobSF | Red del laboratorio |
 | 8080 | Proxy de Burp | `0.0.0.0` (para que la VM lo alcance) |
 | 8888 | Backend InsecureBankv2 | Red del laboratorio |
-| 1337 | Proxy interno de MobSF | **Sólo `127.0.0.1`** |
+| 1337 | Proxy interno de MobSF | `MOBSF_BIND_ADDR` (por defecto `0.0.0.0`) |
 
 ### Claves SSH
 

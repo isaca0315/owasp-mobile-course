@@ -84,6 +84,7 @@ sudo ANDROID_VM_IP=10.0.0.50 ANDROID_VM_PORT=5555 ./setup-mobile-pentest-lab.sh
 | `ANDROID_VM_PORT` | `5555` | Puerto ADB |
 | `ANDROID_PLATFORM` | `android-28` | Plataforma del SDK |
 | `MOBSF_DOCKER_TAG` | `latest` | Tag de la imagen de MobSF |
+| `MOBSF_BIND_ADDR` | `0.0.0.0` | Interfaz de escucha de MobSF (puertos 8000 y 1337). Ponle `127.0.0.1` para no exponerlo a la red |
 
 ---
 
