@@ -26,6 +26,7 @@ escritorio (SSH, sin X, sin monitor).
 | **1** — OWASP Mobile Top 10: M1, M2, M6 | [`docs/clases/clase-1-owasp-mobile-top10.md`](docs/clases/clase-1-owasp-mobile-top10.md) | Guion verificado de extremo a extremo |
 | | [`docs/clases/clase-1-evidencia.md`](docs/clases/clase-1-evidencia.md) | Transcripción real de la prueba |
 | **2** — M3, M4, M5, M7 | [`docs/clases/clase-2-owasp-mobile-top10.md`](docs/clases/clase-2-owasp-mobile-top10.md) | Guion preparado, pendiente de verificar en VM |
+| **3** — M8, M9, M10 | [`docs/clases/clase-3-owasp-mobile-top10.md`](docs/clases/clase-3-owasp-mobile-top10.md) | Guion preparado, pendiente de verificar en VM |
 
 ---
 
