@@ -87,6 +87,13 @@ __pycache__/
 # backend: se descarga y se regenera con el instalador.
 tools/InsecureBankv2Server/
 *.db
+# 'mydb' SIN extensión: es la base de datos de la APP que se extrae de la
+# VM durante las clases (prueba de M2). Contiene datos reales del dispositivo
+# y no debe llegar al remoto. Sin esta regla se colaba con 'git add -A',
+# porque *.db no la cubre.
+mydb
+mydb-journal
+mydb-wal
 
 # =============================================================================
 # DESCARGAS Y TEMPORALES

@@ -272,7 +272,86 @@ los 149 anteriores.
 
 ---
 
-## 9. Lo que **NO** está verificado
+## 9. Clase 2 (M3, M4, M5, M7) — VERIFICADO
+
+El 1 de octubre de 2026 se verificó la Clase 2 completa contra la misma VM
+(`172.25.208.100`, API 27, `x86_64`, root por ADB) y el mismo servidor con
+`systemd` real. Transcripción en
+[`clases/clase-2-evidencia.md`](clases/clase-2-evidencia.md).
+
+### M3 — Autenticación insegura
+
+| Prueba | Resultado |
+|---|---|
+| `/devlogin` con contraseña vacía, falsa y arbitraria | SIEMPRE `Correct Credentials` |
+| `/devlogin` con usuario inexistente | `Correct Credentials` |
+| **Bypass end-to-end en la app**: `devadmin` / `inventada999` | Entra en `PostLogin` |
+| Credenciales falsas guardadas y descifradas | `inventada999` con la clave de M1 |
+| `/changepassword` sin contraseña actual | Toma control de `dinesh`; restaurado después |
+| Rate limiting (`sleep`, `limit`, `lockout`, `captcha`) | 0 ocurrencias en `app.py` |
+| **Bypass con Frida** sobre `convertStreamToString` | Backend dijo `Wrong Password`, la app entró |
+
+### M4 — Criptografía insuficiente
+
+| Prueba | Resultado |
+|---|---|
+| Clave hardcodeada | `CryptoClass.java:22` |
+| IV de 16 ceros | `CryptoClass.java:23` |
+| Modo `AES/CBC/PKCS5Padding` sin MAC | `CryptoClass.java:28` |
+| Descifrado de `superSecurePassword` | `Dinesh@123$` |
+| **Esquema de firma (hallazgo nuevo)** | Sólo v1 → **Janus / CVE-2017-13156** |
+
+### M5 — Comunicación insegura
+
+| Prueba | Resultado |
+|---|---|
+| `protocol` hardcodeado | `http://` en 3 clases |
+| Tráfico real de la app capturado por el proxy | `password=Dinesh%40123%24` en claro |
+| Petición alterada por el proxy | `dinesh` → `jack`, backend lo acepta sin detectar nada |
+| Respuesta alterada | `Wrong Password` → `Correct Credentials`; la app entra |
+
+### M7 — Calidad de código del cliente
+
+| Prueba | Resultado |
+|---|---|
+| `android:debuggable` | `true` |
+| `android:allowBackup` | `true` |
+| Permisos | 12 declarados, **8 peligrosos** |
+| `sdkVersion` / `targetSdkVersion` | `15` / `22` |
+
+### Fallos encontrados y corregidos durante esta verificación
+
+El guion de la Clase 2 que existía dentro del script **tenía seis errores**, cada
+uno de los cuales habría roto la clase:
+
+| Error del guion | Corrección |
+|---|---|
+| Hook de Frida sobre `checkCredentials` | Ese método no existe. El hook va a `convertStreamToString` (`DoLogin$RequestTask`) |
+| `hook_login.js` con `<Clase>`/`<método>` sin rellenar | Sustituido por [`clases/hook-m3-bypass.js`](clases/hook-m3-bypass.js), ejecutado y verificado |
+| `frida ... --no-pause` | Flag eliminado en Frida 16; provoca `unrecognized arguments` |
+| `SSLContext.setDefault()` para el pinning | Ese método no existe, y la app no usa TLS: no hay nada que bypassear |
+| «7 permisos peligrosos» | Son **8** |
+| Burp Suite para la fase M5 | No arranca en headless; se incluye [`clases/mitm-m5.py`](clases/mitm-m5.py) |
+
+Y cuatro bugs del propio proxy, todos encontrados ejecutándolo y no leyéndolo:
+
+| Bug | Síntoma | Causa |
+|---|---|---|
+| Log vacío | El proxy «no capturaba» nada | Python bufferiza stdout sin TTY |
+| **HTTP 400** | Toda petición devolvía 400 | Al borrar `Proxy-Connection` se dejaba su `\r\n`, que terminaba las cabeceras antes de tiempo |
+| **Colgado** | El proxy no respondía | Al alterar el body no se ajustaba `Content-Length` (y la regex `…\d+$` no casaba por el `\r`) |
+| App no entraba | Respuesta falsificada inútil | `Wrong`→`Correct` da `Correct Password`, que no contiene `"Correct Credentials"` |
+
+### Una trampa documentada
+
+El backend **sí** registra contraseñas (`print(newpassword)`, `app.py:85`), pero
+**no aparecen en `journalctl`**: Python bufferiza stdout cuando no hay terminal.
+Pedir a un alumno que busque la contraseña en el log y no verla lleva a la
+conclusión equivocada. Documentado en el guion y en `troubleshooting.md`.
+
+---
+
+## 10. Lo que **NO** está verificado
 
 Conviene decirlo con claridad:
 
@@ -293,19 +372,19 @@ Conviene decirlo con claridad:
    entorno de pruebas no había un `systemd` completo.
 
 5. **Clases 2 en adelante.** Este repositorio documenta y prepara la Clase 1.
-   Las clases futuras (M3 autenticación, M5 comunicación) necesitarán el
-   backend, Burp y `frida-server`, y no están escritas todavía.
+   Las clases futuras necesitarán el backend, Burp y `frida-server`, y no están
+   escritas todavía. **La Clase 2 sí está escrita y verificada** (ver sección 9).
 
 ### Recomendación
 
 Antes de impartir la primera clase, ejecutar el instalador completo una vez
-sobre el servidor definitivo y recorrer el guion de la Clase 1 entero. El
-guion está escrito con **salidas reales capturadas**, así que cualquier
+sobre el servidor definitivo y recorrer los guiones de las Clases 1 y 2 enteros.
+Ambos están escritos con **salidas reales capturadas**, así que cualquier
 divergencia se detecta comparando contra lo que hay en el documento.
 
 ---
 
-## 10. Estado de la máquina de pruebas
+## 11. Estado de la máquina de pruebas
 
 Tras la segunda ejecución, la máquina de pruebas (`172.25.208.104`) queda así:
 
@@ -320,7 +399,15 @@ Tras la segunda ejecución, la máquina de pruebas (`172.25.208.104`) queda así
 - `InsecureBankv2` instalada, configurada apuntando a `172.25.208.104:8888`
 - Base de datos `mydb` con un registro (`dinesh`) en la tabla `names`
 - Credenciales guardadas en las `SharedPreferences`
-- El log de M6 está en el búfer del sistema
+- `frida-server` 17.19.0 en `/data/local/tmp/frida-server`, arrancado
+- Proxy del sistema **desactivado** (`http_proxy` borrado) tras la fase M5
+
+**Backups y limpieza al terminar la verificación de la Clase 2:**
+
+- Base de datos del backend restaurada: `dinesh` y `jack` con sus contraseñas
+  originales (se comprobó el login después de restaurar).
+- Tabla `names` de la VM vaciada tras las demos.
+- Puerto 8080 liberado.
 
 Para dejar la VM completamente limpia:
 

@@ -25,7 +25,9 @@ escritorio (SSH, sin X, sin monitor).
 |---|---|---|
 | **1** — OWASP Mobile Top 10: M1, M2, M6 | [`docs/clases/clase-1-owasp-mobile-top10.md`](docs/clases/clase-1-owasp-mobile-top10.md) | Guion verificado de extremo a extremo |
 | | [`docs/clases/clase-1-evidencia.md`](docs/clases/clase-1-evidencia.md) | Transcripción real de la prueba |
-| 2 — M3, M4, M5, M7 | *pendiente* | Requiere Burp y `frida-server` |
+| **2** — OWASP Mobile Top 10: M3, M4, M5, M7 | [`docs/clases/clase-2-owasp-mobile-top10.md`](docs/clases/clase-2-owasp-mobile-top10.md) | Guion verificado de extremo a extremo |
+| | [`docs/clases/clase-2-evidencia.md`](docs/clases/clase-2-evidencia.md) | Transcripción real de la prueba |
+| | [`docs/clases/mitm-m5.py`](docs/clases/mitm-m5.py) · [`hook-m3-bypass.js`](docs/clases/hook-m3-bypass.js) | Herramientas de M5 y M3 |
 | 3 — M8, M9, M10 | *pendiente* | Requiere JADX, apktool y `frida-server` |
 
 ---
@@ -139,6 +141,9 @@ vmconnect frida        # URL y comandos de frida-server para ESTA VM
 bank-start             bank-stop             bank-status
 clase1-prep            clase1-demo
 
+# Clase 2
+python3 docs/clases/mitm-m5.py --port 8080 --target 127.0.0.1:8888 --tamper
+
 # Servicio
 sudo journalctl -u mobsf-server -f
 docker ps | docker logs -f mobsf
@@ -237,7 +242,14 @@ Resumen honesto, en detalle en [`docs/verificacion.md`](docs/verificacion.md):
   `logcat`, extracción y lectura de la base de datos, `SharedPreferences`,
   descompilación con JADX y descifrado M1→M2. Transcripción completa en
   [`docs/clases/clase-1-evidencia.md`](docs/clases/clase-1-evidencia.md).
-- **Corregido durante esa prueba:** el backend entraba en un bucle de 149
+- **Clase 2 verificada de extremo a extremo** contra la misma VM: bypass de
+  autenticación por `/devlogin` con la app oficial, cambio de contraseña sin
+  contraseña actual, captura de tráfico HTTP en claro con `mitm-m5.py`,
+  alteración de respuesta (login fallido → sesión iniciada), bypass con Frida
+  sobre `convertStreamToString`, firma v1 / Janus, permisos y configuración del
+  manifiesto. Transcripción completa en
+  [`docs/clases/clase-2-evidencia.md`](docs/clases/clase-2-evidencia.md).
+- **Corregido durante esas pruebas:** el backend entraba en un bucle de 149
   reinicios si el puerto 8888 estaba ocupado. Ahora lleva tope de reinicios,
   aviso previo y diagnóstico. Verificado reproducciendo el fallo.
 - **Verificado estáticamente**: sintaxis, `shellcheck` en nivel `style`, todas

@@ -214,6 +214,119 @@ dentro:
 adb -s 172.25.208.100:5555 shell '/data/local/tmp/frida-server-android-x86_64 &'
 ```
 
+### `unrecognized arguments: --no-pause`
+
+**Causa:** el flag `--no-pause` **se eliminó en Frida 16**. En las versiones
+actuales la app se reanuda sola al cargar el script.
+
+**Solución:** quita el flag:
+
+```bash
+frida -U -f com.android.insecurebankv2 -l docs/clases/hook-m3-bypass.js
+```
+
+Para dejar el proceso parado, el flag es `--pause`.
+
+---
+
+## Clase 2 (M3, M4, M5, M7)
+
+### El proxy del sistema no captura nada y el log sale vacío
+
+**Síntoma:** el móvil tiene el proxy configurado, haces login, pero
+`mitm-m5.py` no muestra ni una línea.
+
+**Causa:** casi siempre bufferización. Python bloquea stdout en bloques de 4–8
+KB cuando la salida no es una terminal, así que con `nohup … > log` los
+mensajes se quedan en el buffer y no aparecen. El proxy está funcionando; el
+log aún no se ha escrito.
+
+**Solución:** `mitm-m5.py` ya fuerza `line_buffering`, así que si te pasa es que
+estás ejecutando una copia antigua. Y para verlo sin buffering:
+
+```bash
+python3 -u docs/clases/mitm-m5.py --port 8080 --target 127.0.0.1:8888
+```
+
+Comprueba que el proxy captura peticiones localmente antes de culpar a la app:
+
+```bash
+curl -s -x http://127.0.0.1:8080 -X POST -d 'username=dinesh&password=Dinesh@123$' \
+     http://172.25.208.104:8888/login
+```
+
+### El móvil se queda sin red después de la fase M5
+
+**Causa:** el proxy sigue configurado en el dispositivo.
+
+```bash
+adb -s 172.25.208.100:5555 shell settings put global http_proxy :0
+adb -s 172.25.208.100:5555 shell am force-stop com.android.insecurebankv2
+```
+
+Conviene dejarlo así **siempre** al terminar la fase, o el móvil parece averiado
+en la siguiente.
+
+### La fase de login «no hace nada»
+
+**Causa:** casi siempre que el backend está parado. Sin respuesta del backend no
+hay pantalla de error útil.
+
+```bash
+bank-status
+```
+
+### No encuentro la contraseña en el log del backend
+
+**Causa (trampa real):** el backend **sí** la registra (`app.py:85`,
+`print(newpassword)`), pero **no lo verás en `journalctl`** mientras el buffer de
+Python no se llene. Python bloquea stdout cuando no hay terminal, así que los
+mensajes llegan al journal a trozos.
+
+**No concluyas que el backend no loguea.** Para verlo en vivo:
+
+```bash
+cd ~/mobile-owasp-lab/tools/InsecureBankv2Server
+PYTHONUNBUFFERED=1 venv/bin/python app.py --port 8888
+```
+
+### El login con `devadmin` funciona en el curl pero no en la app
+
+No es un error: es el objetivo de la fase. En la app hay que escribir
+exactamente `devadmin` en el campo de usuario, porque la decisión de endpoint se
+toma en el cliente comparando esa cadena (`DoLogin.java:103`). Cualquier otro
+nombre va a `/login`, que sí valida la contraseña.
+
+Si `devadmin` + cualquier clave no entra, comprueba primero que el backend está
+activo y que la app apunta a la IP correcta:
+
+```bash
+adb -s 172.25.208.100:5555 shell \
+  "cat /data/data/com.android.insecurebankv2/shared_prefs/com.android.insecurebankv2_preferences.xml"
+```
+
+### La demo de MITM no deja entrar a la app
+
+**Causa:** si alteraste la respuesta sustituyendo `Wrong` por `Correct`, la app
+recibe `Correct Password`, y eso **no** contiene la cadena que busca
+(`"Correct Credentials"`, `DoLogin.java:114`). La app se queda en
+`WrongLogin` sin avisar.
+
+**Solución:** falsificar la respuesta completa, que es lo que hace `--tamper`:
+
+```bash
+python3 docs/clases/mitm-m5.py --port 8080 --target 127.0.0.1:8888 --tamper
+```
+
+### Burp no arranca en el servidor
+
+**Causa:** es una aplicación Swing y el servidor es headless. Sin Xvfb no hay
+display, y el lanzador `/usr/local/bin/burpsuite` directamente no existe: el
+binario real está en `/opt/burpsuite/app`.
+
+**Solución:** usa `docs/clases/mitm-m5.py`, que cubre la fase M5 sin escritorio.
+El procedimiento con Burp está en el Anexo C del guion de la Clase 2.
+
 ---
 
 ## Instalador
