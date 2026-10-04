@@ -351,7 +351,107 @@ conclusión equivocada. Documentado en el guion y en `troubleshooting.md`.
 
 ---
 
-## 10. Lo que **NO** está verificado
+## 10. Clase 3 (M8, M9, M10) — VERIFICADO
+
+Igual que la Clase 2, ejecutada de extremo a extremo contra la misma VM
+(`172.25.208.100:5555`, Android 8.1.0 API 27) y el mismo backend. Transcripción
+completa en `docs/clases/clase-3-evidencia.md`.
+
+### Entorno exigido por la clase
+
+| Componente | Estado al empezar | Resolución aplicada |
+|---|---|---|
+| JADX | Instalado | — |
+| **apktool** | **Ausente** | El instalador solo lo pone con `--extras`, pero la clase lo necesita para M8. Está en los repos de Ubuntu 24.04: `sudo apt-get install -y apktool` → `2.7.0-dirty`. El `verify()` del script ahora lo avisa |
+| **apksigner** | **Fuera del PATH** | En `/opt/android-sdk/build-tools/33.0.2/`. `verify()` ahora lo comprueba |
+| **d8** | Fuera del PATH | Mismo directorio |
+| **tshark** | **Ausente** | Se eliminó de la clase: no aporta nada a M8/M9/M10 y `verify()` no lo comprueba |
+
+### Hallazgos verificados (20)
+
+| Bloque | Verificados | Requieren instrumentación |
+|---|---|---|
+| M9 Reverse Engineering | 6 | 1 (Frida) |
+| M8 Code Tampering | 8 | 2 (`apktool`, `apksigner`) |
+| M10 Extraneous Functionality | 6 | 0 |
+
+**11 de 20 se demostraron sin más que `adb shell` y `curl`.** Los tres que
+necesitan herramienta son: el hook de M9, el parche de smali y el intento Janus.
+
+### Los tres resultados que exigían documentarlos como fallo
+
+1. **Con el backend apagado, la APK parcheada NO entra**, aunque se parchen las
+   dos puertas de rejection. El motivo es estructural: el chequeo de login está
+   dentro del `try` de `postData`, junto a la llamada de red, así que la
+   excepción aborta antes de llegar al código parcheado. No se puede «parchear
+   para offline» sin reestructurar el método.
+
+2. **Janus pasa la verificación de firma pero no la instalación.** Con 856 bytes
+   de DEX ajeno prependidos y el directorio central del ZIP corregido:
+   `apksigner verify` sigue reportando la **firma v1 original como válida**,
+   `unzip -t` no reporta errores, y `AndroidManifest.xml` y `classes.dex` son
+   **byte-idénticos** a los originales (mismo SHA-256). Pero `adb install` falla
+   con `INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION` y
+   `PackageParser: java.io.FileNotFoundException: AndroidManifest.xml`.
+
+   La variante sin corregir el directorio central da el mismo error, y la APK
+   original instala bien como control.
+
+3. **Ese último punto coincide con la documentación.** NVD lista CVE-2017-13156
+   como afecta a Android **5.1.1, 6.0, 6.0.1, 7.0, 7.1.1, 7.1.2, 8.0**. La VM
+   es **8.1.0**: el fallo ocurre exactamente donde termina el rango documentado.
+   Comprobación independiente de un límite publicado.
+
+### Hallazgo principal de la clase
+
+El receptor `MyBroadCastReceiver` está declarado `exported="true"` **sin ningún
+permiso**. Desde fuera de la app, un simple `am broadcast` consigue que descifre
+la contraseña almacenada con la clave embebida de M4 y la envíe por SMS al número
+indicado:
+
+```
+System.out: For the changepassword - phonenumber: +34600000000 password is:
+             Updated Password from: Dinesh@123$ to: ATACANTE-DICE-ESTO
+```
+
+Además, `PostLogin` exportada permite entrar en la zona autenticada con
+`am start` desde el launcher, sin usuario ni contraseña, y
+`TrackUserContentProvider` (sin `readPermission` ni `writePermission`) permite
+**leer e insertar filas** desde cualquier app.
+
+### Errores del guion anterior corregidos
+
+| # | Antes | Ahora |
+|---|---|---|
+| 1 | `frida … --no-pause` | Eliminado: el flag no existe en Frida 16+ |
+| 2 | Hook sobre `CryptoClass.encrypt`/`.decrypt` | Hook sobre `aesEncryptedString` / `aesDeccryptedString`, los nombres reales |
+| 3 | El replacement llamaba a `this.encrypt(...)` | Usa `this.aesEncryptedString(theString)`, el overload real |
+| 4 | Modificaba `res/drawable-hdpi/ic_launcher.png` | La app no usa `drawable-hdpi`. El rename va por `strings.xml`, y verificado dentro de `resources.arsc` |
+| 5 | `tcpdump … host <ip>` y `tshark` | Fase eliminada: sintaxis incorrecta y `tshark` no instalado |
+| 6 | El hook no disparaba nunca | Causa: `-f` pierde el descifrado de `onCreate`. Ahora se adjunta por PID |
+| 7 | `adb push` de las preferencias | No funciona: el fichero queda de `root` y la app no lo lee. Se configura en la pantalla |
+
+### Comprobado al final
+
+`bash -n` y `shellcheck -S style` sin avisos. `class3_runbook()` (7714 → 4239
+caracteres) copia los ficheros verificados desde `docs/clases/`, igual que
+`class2_runbook()`, de modo que el laboratorio instalado y el repositorio no
+pueden divergir. `verify()` comprueba ahora `apksigner` con `[FALLA]` si falta y
+`apktool` con `[AVISO]`.
+
+### Estado tras las pruebas
+
+```
+app instalada:   1  (original, CN=Dinesh Shetty)
+backend:         active
+proxy VM:        :0
+mydb:            0 filas
+base del backend: dinesh,jack   (restaurada)
+```
+
+---
+
+## 11. Lo que **NO** está verificado
 
 Conviene decirlo con claridad:
 
@@ -371,20 +471,32 @@ Conviene decirlo con claridad:
 4. **El servicio systemd del backend en un sistema con systemd real.** En el
    entorno de pruebas no había un `systemd` completo.
 
-5. **Clases 2 en adelante.** Este repositorio documenta y prepara la Clase 1.
-   Las clases futuras necesitarán el backend, Burp y `frida-server`, y no están
-   escritas todavía. **La Clase 2 sí está escrita y verificada** (ver sección 9).
+5. **Clases 4 en adelante.** Este repositorio documenta y prepara las Clases 1,
+   2 y 3. **Las tres están escritas y verificadas** (ver secciones 9 y 10). No hay
+   guion de clase posterior a la 3.
+
+6. **Los CVE citados en `docs/clases/cve-2026-mobile.md` no se han reproducido.**
+   Son vulnerabilidades reales de otros productos (Android, SDKs de terceros, apps
+   comerciales) usadas para contextualizar los hallazgos del laboratorio. **Este
+   repositorio no las ha explotado ni las ha verificado.** Lo que sí se verificó
+   en la VM es el comportamiento equivalente en InsecureBankv2. La excepción
+   parcial es Janus (CVE-2017-13156), del que se comprobó el comportamiento del
+   esquema de firma v1 y se comprobó que Android 8.1 bloquea la instalación.
 
 ### Recomendación
 
 Antes de impartir la primera clase, ejecutar el instalador completo una vez
-sobre el servidor definitivo y recorrer los guiones de las Clases 1 y 2 enteros.
-Ambos están escritos con **salidas reales capturadas**, así que cualquier
-divergencia se detecta comparando contra lo que hay en el documento.
+sobre el servidor definitivo y recorrer los guiones de las Clases 1, 2 y 3
+enteros. Los tres están escritos con **salidas reales capturadas**, así que
+cualquier divergencia se detecta comparando contra lo que hay en el documento.
+
+El guion de la Clase 3 tiene además una particularidad: documenta **tres ataques
+que no funcionan** (§2.6 y §2.8). Si al impartirla uno de ellos te sale bien,
+es probable que tu versión de Android sea ≤ 8.0, no que el documento esté mal.
 
 ---
 
-## 11. Estado de la máquina de pruebas
+## 12. Estado de la máquina de pruebas
 
 Tras la segunda ejecución, la máquina de pruebas (`172.25.208.104`) queda así:
 

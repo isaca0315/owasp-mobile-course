@@ -329,6 +329,208 @@ El procedimiento con Burp está en el Anexo C del guion de la Clase 2.
 
 ---
 
+## Clase 3 (M8, M9, M10)
+
+### `apktool: command not found` en mitad de la clase
+
+**Causa:** el instalador solo pone `apktool` con la opción `--extras`, pero la
+Clase 3 lo necesita para M8. Una instalación normal se queda sin él.
+
+**Solución:**
+
+```bash
+sudo apt-get install -y apktool    # está en los repos de Ubuntu 24.04
+apktool --version                  # 2.7.0-dirty
+```
+
+El sufijo `-dirty` es normal en el paquete de Debian/Ubuntu y no indica un
+problema. El instalador ahora avisa de esto en la verificación final con
+`[AVISO] apktool (Clase 3 / M8)`.
+
+### `apksigner: command not found` / `d8: command not found`
+
+**Causa:** vienen con build-tools pero no están en el `PATH`.
+
+**Solución:**
+
+```bash
+source /etc/profile.d/android-sdk.sh
+export PATH="$PATH:/opt/android-sdk/build-tools/33.0.2"
+```
+
+Este `export` **solo vive en la shell actual**. Si abres otra terminal, la Fase 2
+se cae con `command not found` en el peor momento. Ponlo al principio de la clase,
+no cuando lo necesites.
+
+### El hook de Frida imprime el banner pero no captura nada
+
+Casi siempre es una de estas dos, y las dos las encontré probando, no leyendo:
+
+**1. Estás usando `-f` (spawn) en vez de `-p` (attach).** Con `-f` hay una carrera:
+el script se instala cuando el runtime está listo, pero la app puede haber
+ejecutado ya su `onCreate`. En InsecureBankv2, `LoginActivity.onCreate`
+descifra la credencial guardada, así que con `-f` te pierdes **precisamente** el
+evento que querías capturar.
+
+```bash
+# mal: pierde el descifrado inicial
+frida -U -f com.android.insecurebankv2 -l docs/clases/hook-m9-clave.js
+
+# bien: arranca la app primero y luego se engancha
+adb shell am start -n com.android.insecurebankv2/.LoginActivity
+frida -U -p $(adb shell pidof com.android.insecurebankv2 | tr -d '\r') \
+      -l docs/clases/hook-m9-clave.js
+```
+
+**2. El hook no dispara y no da ningún error.** Es el caso clásico de un método
+que no existe con el nombre que has puesto. Ojo: aquí el método real se llama
+**`aesDeccryptedString`, con doble `c`**. Es una errata del autor de la app.
+
+```bash
+# Para comprobar que el método existe antes de culpar a Frida:
+grep -oE 'public [a-zA-Z\[\]]+ [a-zA-Z]+\(' \
+  ~/mobile-owasp-lab/reports/jadx/InsecureBankv2/sources/com/android/insecurebankv2/CryptoClass.java
+```
+
+Si el banner se imprime, el hook **existe** (si el método no estuviera,
+`.overload()` lanzaría excepción). Si no captura nada, el problema es de
+*cuándo* te enganchaste, no *dónde*.
+
+### El hook no captura: `frida -n` dice `unable to find process with name`
+
+**Causa:** desincronización de la lista de procesos de Frida. El proceso existe
+(`adb shell pidof` y `ps` lo ven), pero Frida todavía no lo tiene.
+
+**Solución:** engancha por PID. Nunca falla.
+
+```bash
+frida -U -p $(adb shell pidof com.android.insecurebankv2 | tr -d '\r') -l hook.js
+```
+
+### La app modificada no entra y creo que el parche falló
+
+Lo más probable es que **el backend esté apagado**. Está documentado a propósito
+en la Fase 2, §2.6, y no es un fallo del parche:
+
+```bash
+systemctl is-active insecurebankv2-server   # debe decir: active
+```
+
+El chequeo de login está **dentro del `try`** que hace la llamada de red, así que
+si el servidor no responde la excepción salta antes de llegar al código parcheado.
+Los dos `nop` nunca se ejecutan. Los dos «saltos a error» que se parchean están
+en `smali`, pero el `try` que los envuelve está en `DoLogin.postData`.
+
+Con el backend encendido y credenciales inventadas, la app parcheada **sí** entra.
+Ese es el escenario de demostración, y el guion incluye el `curl` de control que
+muestra lo que el servidor responde realmente.
+
+### `INSTALL_FAILED_UPDATE_INCOMPATIBLE` al instalar la APK modificada
+
+**Causa:** esperado. La APK modificada la firma `CN=Attacker`, que no coincide
+con `CN=Dinesh Shetty` de la instalada. Android rechaza actualizar un paquete
+firmado con una clave distinta.
+
+```bash
+adb uninstall com.android.insecurebankv2
+adb install InsecureBankv2_mod2_signed.apk
+```
+
+Y recuerda reinstalar la original al terminar (§2.9 de la clase), o la siguiente
+sesión empezará sobre un estado inesperado.
+
+### La instalación de la APK Janus falla con `FileNotFoundException`
+
+**No es un fallo tuyo. Está documentado como resultado esperado.** El ataque
+consigue que la firma v1 siga siendo válida (`apksigner verify` lo confirma) con
+856 bytes ajenos prependidos, pero Android 8.1 lo bloquea al instalar:
+
+```
+INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION: Failed to parse ...: AndroidManifest.xml
+W PackageParser: java.io.FileNotFoundException: AndroidManifest.xml
+```
+
+NVD documenta CVE-2017-13156 hasta Android **8.0**; nuestra VM es **8.1.0**.
+Es exactamente el límite del rango documentado. La clase lo explica en §2.8: el
+esquema v1 es realmente débil, y el trabajo está en decirlo con precisión en vez
+de en celebar un exploit que aquí no completa.
+
+### `adb push` de las preferencias y la app vuelve a `FilePref`
+
+**Causa:** el fichero empujado queda propiedad de `root` y la app corre como
+`u0_a75`, así que no puede leerlo. La app cae a `FilePref` con el valor por
+defecto `10.0.2.2`.
+
+**Solución:** configúralo a mano en la pantalla, que sí funciona:
+
+```
+Server IP:   -> 172.25.208.104   (campo en [138,92][632,129])
+Server Port: -> 8888             (campo en [138,163][632,200])
+Submit:                           (botón  en [4,252][636,314])
+```
+
+### `content delete` falla con `no such column: injectado`
+
+**Causa:** sin comillas internas, el shell las elimina y `content delete`
+interpreta el valor como nombre de columna en vez de como valor.
+
+```bash
+# mal: DELETE FROM names WHERE name=injectado
+adb shell content delete --uri "$U" --where "name='injectado'"
+
+# bien
+adb shell "content delete --uri \"$U\" --where \"name='injectado'\""
+```
+
+### `Could not find provider: com.android.insecurebankv2.provider.trackuser`
+
+**Causa:** el authority **es el nombre completo de la clase**, no una ruta
+inventada con la palabra `provider`.
+
+```bash
+# mal
+content://com.android.insecurebankv2.provider.trackuser/
+
+# bien
+content://com.android.insecurebankv2.TrackUserContentProvider/trackerusers
+```
+
+Sácalo siempre del manifest, no del nombre del paquete:
+
+```bash
+grep -oE 'android:authorities="[^"]*"' AndroidManifest.xml
+```
+
+### `aapt: Could not extract resource: /prebuilt/linux/aapt_64`
+
+**No es un error.** El paquete de Ubuntu de `apktool` está compilado para otra
+arquitectura y cae a su `aapt` embebido. Es un aviso `W:` y la construcción de
+la APK **funciona**. Si ves este aviso y la línea siguiente es
+`I: Built apk into: ...`, todo está bien.
+
+### El aviso de `d8` sobre `class file version >= 56`
+
+**No es un error.** `javac 17` genera bytecode que `d8` no reconoce
+oficialmente, pero el DEX resultante es válido:
+
+```bash
+file classes.dex     # Dalvik dex file version 035
+```
+
+### `pkill -f` me ha matado la terminal
+
+**Causa:** `pkill -f <patrón>` compara contra la **línea de comandos completa**,
+y tu propia shell contiene el patrón. Se mata a sí misma.
+
+**Solución:** localiza el PID y mata solo ese PID:
+
+```bash
+FP=$(ps -eo pid,args | grep -F 'hook-m9-clave.js' | grep -v grep | awk '{print $1}' | head -1)
+[ -n "$FP" ] && kill "$FP"
+```
+
+---
+
 ## Instalador
 
 ### `adb` o `java` no se encuentran tras instalar

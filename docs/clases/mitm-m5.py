@@ -196,7 +196,7 @@ class Handler(socketserver.StreamRequestHandler):
                 #  2) La expresion anterior era r"(?im)^content-length:\s*\d+$"
                 #     y NO casaba, porque las cabeceras estan unidas con \r\n
                 #     y '$' en modo multilineo solo casa antes de un \n, dejando
-                #     un \r de por medio. El后果unto era el mismo cuelgue.
+                #     un \r de por medio. El resultado era el mismo cuelgue.
                 #
                 # Se separa el texto en lineas, se toca la que empieza por
                 # content-length y se vuelve a unir: sin sorpresas con \r.

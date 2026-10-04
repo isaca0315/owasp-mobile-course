@@ -28,7 +28,10 @@ escritorio (SSH, sin X, sin monitor).
 | **2** — OWASP Mobile Top 10: M3, M4, M5, M7 | [`docs/clases/clase-2-owasp-mobile-top10.md`](docs/clases/clase-2-owasp-mobile-top10.md) | Guion verificado de extremo a extremo |
 | | [`docs/clases/clase-2-evidencia.md`](docs/clases/clase-2-evidencia.md) | Transcripción real de la prueba |
 | | [`docs/clases/mitm-m5.py`](docs/clases/mitm-m5.py) · [`hook-m3-bypass.js`](docs/clases/hook-m3-bypass.js) | Herramientas de M5 y M3 |
-| 3 — M8, M9, M10 | *pendiente* | Requiere JADX, apktool y `frida-server` |
+| **3** — OWASP Mobile Top 10: M8, M9, M10 | [`docs/clases/clase-3-owasp-mobile-top10.md`](docs/clases/clase-3-owasp-mobile-top10.md) | Guion verificado de extremo a extremo |
+| | [`docs/clases/clase-3-evidencia.md`](docs/clases/clase-3-evidencia.md) | Transcripción real: 20 hallazgos y 3 fallos documentados |
+| | [`docs/clases/hook-m9-clave.js`](docs/clases/hook-m9-clave.js) · [`prepend-janus.py`](docs/clases/prepend-janus.py) · [`CryptoClass-janus.java`](docs/clases/CryptoClass-janus.java) | Herramientas de M9 y M8 |
+| | [`docs/clases/cve-2026-mobile.md`](docs/clases/cve-2026-mobile.md) | Cada hallazgo mapeado a CVE reales de 2026 |
 
 ---
 
@@ -144,6 +147,13 @@ clase1-prep            clase1-demo
 # Clase 2
 python3 docs/clases/mitm-m5.py --port 8080 --target 127.0.0.1:8888 --tamper
 
+# Clase 3 — M9: clave AES en memoria. Adjuntar por PID, NO con -f
+sudo apt-get install -y apktool            # necesario para M8 (Fase 0 de la clase)
+export PATH="$PATH:/opt/android-sdk/build-tools/33.0.2"   # apksigner y d8
+vmconnect frida                            # levanta frida-server en la VM
+frida -U -p $(adb shell pidof com.android.insecurebankv2) \
+      -l docs/clases/hook-m9-clave.js
+
 # Servicio
 sudo journalctl -u mobsf-server -f
 docker ps | docker logs -f mobsf
@@ -249,6 +259,25 @@ Resumen honesto, en detalle en [`docs/verificacion.md`](docs/verificacion.md):
   sobre `convertStreamToString`, firma v1 / Janus, permisos y configuración del
   manifiesto. Transcripción completa en
   [`docs/clases/clase-2-evidencia.md`](docs/clases/clase-2-evidencia.md).
+- **Clase 3 verificada de extremo a extremo** contra la misma VM: clave AES e IV
+  embebidos leídos con JADX, **contraseña en claro capturada en vivo con Frida**
+  en los dos sentidos (cifrado y descifrado), parche de smali que elimina la
+  validación de login, APK re-firmada por `CN=Attacker` con v2+v3, renombrado de
+  la app, `/devlogin`, **bypass de autenticación lanzando una actividad
+  exportada**, receptor exportado que **exfiltra la contraseña por SMS**, y un
+  `ContentProvider` sin permisos que permite **leer e inyectar** filas desde
+  fuera. Transcripción completa en
+  [`docs/clases/clase-3-evidencia.md`](docs/clases/clase-3-evidencia.md).
+- **La Clase 3 documenta también lo que no funcionó**, porque es lo más útil:
+  con el backend caído la app parcheada *no* entra (el chequeo está dentro del
+  `try` de red), y el intento **Janus** pasa la verificación de firma v1 pero
+  Android 8.1 rechaza la instalación. Este último resultado coincide exactamente
+  con el rango de versiones que NVD documenta para CVE-2017-13156.
+- **11 de los 20 hallazgos de la Clase 3 se demostraron sin instrumentación**,
+  solo con `adb shell` y `curl`.
+- **Conexión con el panorama actual:** cada hallazgo se mapea a vulnerabilidades
+  reales publicadas en 2026 — CVE-2026-33362, CVE-2026-28626, CVE-2026-0047 y
+  los boletines de AOSP — en [`docs/clases/cve-2026-mobile.md`](docs/clases/cve-2026-mobile.md).
 - **Corregido durante esas pruebas:** el backend entraba en un bucle de 149
   reinicios si el puerto 8888 estaba ocupado. Ahora lleva tope de reinicios,
   aviso previo y diagnóstico. Verificado reproducciendo el fallo.
