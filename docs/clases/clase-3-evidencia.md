@@ -465,7 +465,7 @@ engancha el resultado (como en la Clase 2 con `hook-m3-bypass.js`).
 Constructo el DEX malicioso:
 
 ```bash
-javac -d classes janus-src/com/android/insecurebankv2/CryptoClass.java
+javac -d classes janus-src/CryptoClass.java
 /opt/android-sdk/build-tools/33.0.2/d8 --min-api 15 --output . \
   classes/com/android/insecurebankv2/CryptoClass.class
 ```
@@ -473,7 +473,7 @@ javac -d classes janus-src/com/android/insecurebankv2/CryptoClass.java
 ```
 Warning in classes/com/android/insecurebankv2/CryptoClass.class:
 One or more classes has class file version >= 56 which is not officially supported.
--rw-rw-r-- 1 cwl cwl 856 Oct  4 03:48 classes.dex
+-rw-rw-r-- 1 cwl cwl 844 Oct  4 16:46 classes.dex
 file classes.dex -> Dalvik dex file version 035
 ```
 
@@ -484,9 +484,10 @@ file classes.dex -> Dalvik dex file version 035
 Prepend con corrección del directorio central:
 
 ```
-DEX prependido: 856 bytes; dir. central en 3408268 -> 3409124
+DEX prependido: 844 bytes; dir. central en 3408268 -> 3409112
 entradas del dir. central reubicadas: 555
-escrito InsecureBankv2_janus.apk: 3463285 bytes
+escrito InsecureBankv2_janus.apk: 3463273 bytes
+entrada a entrada identicas: OK (555 entradas)
 ```
 
 **El ZIP es íntegro:**
@@ -557,7 +558,7 @@ independiente de un límite documentado.
 
 | Afirmación | Estado |
 |---|---|
-| La firma v1 no cubre los bytes anteriores a la primera entrada del ZIP | ✅ Demostrado (`apksigner verify` pasa con 856 bytes ajenos) |
+| La firma v1 no cubre los bytes anteriores a la primera entrada del ZIP | ✅ Demostrado (`apksigner verify` pasa con 844 bytes ajenos) |
 | La APK sigue siendo un ZIP íntegro con contenido byte-idéntico | ✅ Demostrado (`unzip -t`, sha256) |
 | El exploit Janus completa la instalación en Android 8.1 | ❌ **No.** `PackageParser` bloquea con `FileNotFoundException` |
 | Firmar con v2/v3 lo evita | ✅ El esquema v2 «tiene en cuenta todos los bytes del fichero APK», según la documentación de AOSP |

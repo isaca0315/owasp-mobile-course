@@ -281,6 +281,17 @@ Resumen honesto, en detalle en [`docs/verificacion.md`](docs/verificacion.md):
 - **Corregido durante esas pruebas:** el backend entraba en un bucle de 149
   reinicios si el puerto 8888 estaba ocupado. Ahora lleva tope de reinicios,
   aviso previo y diagnóstico. Verificado reproducciendo el fallo.
+- **Segunda pasada de la Clase 3, ejecutada como alumno:** los **49 bloques**
+  `bash` del guion se concatenaron y se corrieron encadenados en una sola
+  terminal, desde el laboratorio reinstalado. Salieron **18 fallos**, todos de
+  estado o de rutas —desde un `cd` que rompía tres secciones hasta un `grep` que
+  no capturaba los dígitos de `aes256encrypt`, pasando por un `sed` que nunca se
+  recompilaba—. Corregidos, la pasada final da `0`. El detalle está en
+  [`docs/verificacion.md`](docs/verificacion.md) §10-bis.
+- **Los 15 CVE del documento extra, contrastados uno a uno contra NVD** el
+  2026-10-04: todos existen. Dos correcciones salieron de ahí (CWE-321 en lugar
+  de CWE-798 para CVE-2026-33362, y la distinción entre la severidad «Crítica»
+  de Google y el CVSS real de NVD). Ver §10-ter del mismo documento.
 - **Verificado estáticamente**: sintaxis, `shellcheck` en nivel `style`, todas
   las URLs y versiones, y los ficheros que el script genera.
 - **No verificado de forma integrada**: la instalación completa del script

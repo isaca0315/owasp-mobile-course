@@ -386,16 +386,21 @@ necesitan herramienta son: el hook de M9, el parche de smali y el intento Janus.
    excepción aborta antes de llegar al código parcheado. No se puede «parchear
    para offline» sin reestructurar el método.
 
-2. **Janus pasa la verificación de firma pero no la instalación.** Con 856 bytes
+2. **Janus pasa la verificación de firma pero no la instalación.** Con 844 bytes
    de DEX ajeno prependidos y el directorio central del ZIP corregido:
    `apksigner verify` sigue reportando la **firma v1 original como válida**,
-   `unzip -t` no reporta errores, y `AndroidManifest.xml` y `classes.dex` son
-   **byte-idénticos** a los originales (mismo SHA-256). Pero `adb install` falla
-   con `INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION` y
+   `unzip -t` no reporta errores, y las 555 entradas del ZIP se extraen
+   **byte-idénticas** a las del original (mismo SHA-256 para
+   `AndroidManifest.xml` y `classes.dex`). Pero `adb install` falla con
+   `INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION` y
    `PackageParser: java.io.FileNotFoundException: AndroidManifest.xml`.
 
    La variante sin corregir el directorio central da el mismo error, y la APK
    original instala bien como control.
+
+   Lo que **sí** cambia, y tiene que cambiar, es la *metadata* del ZIP: los
+   offsets del directorio central se desplazan +844. Por eso la comprobación
+   correcta es entrada a entrada, no `cmp` sobre el fichero entero.
 
 3. **Ese último punto coincide con la documentación.** NVD lista CVE-2017-13156
    como afecta a Android **5.1.1, 6.0, 6.0.1, 7.0, 7.1.1, 7.1.2, 8.0**. La VM
@@ -433,11 +438,159 @@ Además, `PostLogin` exportada permite entrar en la zona autenticada con
 
 ### Comprobado al final
 
-`bash -n` y `shellcheck -S style` sin avisos. `class3_runbook()` (7714 → 4239
-caracteres) copia los ficheros verificados desde `docs/clases/`, igual que
-`class2_runbook()`, de modo que el laboratorio instalado y el repositorio no
-pueden divergir. `verify()` comprueba ahora `apksigner` con `[FALLA]` si falta y
-`apktool` con `[AVISO]`.
+`bash -n` y `shellcheck -S style` sin avisos. `class3_runbook()` copia los
+ficheros verificados desde `docs/clases/`, igual que `class2_runbook()`, de modo
+que el laboratorio instalado y el repositorio no pueden divergir. `verify()`
+comprueba ahora `apksigner` con `[FALLA]` si falta y `apktool` con `[AVISO]`.
+
+---
+
+## 10-bis. Segunda verificación de la Clase 3: ejecución como alumno — VERIFICADO
+
+La primera verificación (§10) comprobó que cada comando **funciona**. Esta
+comprobó algo más exigente: que el guion **se puede seguir de arriba abajo**, en
+una sola terminal, como se impartirá.
+
+**Método:** se extrajeron los 49 bloques `bash` de
+`docs/clases/clase-3-owasp-mobile-top10.md` y se concatenaron en un único
+script, conservando el `cwd` entre bloques (que es justo lo que pasa cuando
+alguien los va copiando). Se ejecutó desde el laboratorio **reinstalado** y con
+el backend reiniciado. La primera pasada dio **5 bloques con error**; la última,
+**0**.
+
+### 12 fallos más, todos de estado o de rutas
+
+| # | Síntoma | Causa real | Corrección |
+|---|---|---|---|
+| 8 | `grep` de §1.2 no devolvía nada | `[a-zA-Z]+` no captura los dígitos de `aes256encrypt`, y `\[\]` dentro de un conjunto de corchetes no es una clase | `public (static )?[A-Za-z]+(\[\])? [A-Za-z0-9]+\(`. Devuelve los **cuatro** métodos |
+| 9 | §3.4 y §3.5: `No such file or directory` | Usan rutas relativas (`resources/…`) pero §2.1 había cambiado el `cwd` a `reports/` | `cd` al árbol de JADX en cada bloque |
+| 10 | §3.1: `curl` con `rc=7` | §2.6 apagó el backend y el reinicio estaba escondido en una nota de prosa | §2.6 termina con `systemctl start` + comprobación |
+| 11 | `BancoSeguro OFICIAL` no aparecía en `resources.arsc` | §2.7 hacía el `sed` pero **no** reconstruía, no firmaba y no reinstalaba. Lo verificado era una APK construida antes del `sed` | §2.7 documenta ahora `apktool b` + `apksigner sign` + `install`, con `InsecureBankv2_mod3_signed.apk` |
+| 12 | `Successful Login` y `For the changepassword` vacíos | Tras `uninstall`/`install` desaparecen las preferencias: la app cae en `FilePref` y los `input tap` se quedan en un formulario vacío | Guarda explícita al inicio de §1.3 + snippet de reapuntar la IP en §0.4, §2.5 y §2.9 |
+| 13 | El receptor de SMS no logueaba nada | `mySharedPreferences` lo escribe `saveCreds()`; sin login previo, `onReceive` peta NPE y **se traga la excepción** | Prerrequisito documentado + comprobación previa en el Anexo |
+| 14 | IP guardada como `10.0.2.2172.25.208.104` | `adb shell input text` **añade**, no sustituye; los campos vienen precargados | Borrado previo con `DEL` tras tocar el borde derecho del campo |
+| 15 | `KEYCODE_MOVE_END` dejaba `10172.25.208.104` | En Android 8.1 no lleva el cursor al final en ese campo, y los `DEL` se comen lo de la izquierda | Tocar el borde derecho del campo (`tap 625`) en vez de `MOVE_END` |
+| 16 | `javac: file not found` en el paso Janus | El guion compilaba `janus-src/com/android/insecurebankv2/CryptoClass.java`; el fichero real está en `janus-src/CryptoClass.java` (el paquete lo declara el `.java`) | Ruta corregida + `rm -rf classes classes.dex` antes, porque si no se reutiliza el DEX viejo |
+| 17 | `prepend.py`: `IndexError` | Necesita **dos** argumentos (original, salida) y el guion no invocaba el script | Comando documentado, validación de uso y comprobación `entrada a entrada identicas: OK (555 entradas)` |
+| 18 | `frida: [Errno 2] No such file: hook-m9-clave.js` | El guion lo buscaba en `reports/`, pero el instalador lo deja en `tools/` | Ruta corregida en las dos referencias |
+| 19 | El snippet de `FilePref` no guardaba la IP (quedaba `10.0.2.2`) | `sleep 3` fijo: si la pantalla tarda más en pintarse, el `tap` cae en el vacío y `adb` devuelve `0` igual | Esperar a que la UI esté lista (`uiautomator dump` + `grep edittext_serverip`) en vez de un `sleep` fijo |
+
+> El fallo 18 **solo** se detecta ejecutando Frida de verdad. Con un shim que
+> devuelve 0 (que es lo que permite validar los otros 48 bloques en lote), el
+> bloque pasa sin detectar nada. Es el límite del método: un shim valida la
+> construcción del comando, no que el comando haga lo que dice.
+
+### Frida ejecutado de verdad (no simulado)
+
+Los dos sentidos del hook de M9 se ejecutaron contra la app real, adjuntando por
+PID como documenta el guion:
+
+```
+  [M9] aesEncryptedString  (cifrando)  <-  "Dinesh@123$"
+        clave en memoria : "This is the super secret key 123"
+        IV en memoria    : 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+```
+
+```
+  [M9] aesDeccryptedString (descifrando)  <-  "DTrW2VXjSoFdg0e61fHxJg==
+    "
+        clave en memoria : "This is the super secret key 123"
+```
+
+El segundo caso reveló un detalle que el guion documentaba idealizado: el Base64
+guardado lleva un salto de línea y cuatro espacios **dentro** de la cadena, porque
+viene del XML indentado de `mySharedPreferences.xml`. `Base64.decode` lo tolera y
+la app funciona, pero comparar ese valor con el esperado falla. Ya está
+documentado en la clase y en `troubleshooting.md`.
+
+### Dos fallos de documentación, no de ejecución
+
+- El tamaño del DEX de Janus estaba documentado como **856 bytes**; el valor real
+  del stub instalado es **844**. Los offsets del directorio central que se
+  documentaban (`3408268 -> 3409124`) tampoco cuadraban.
+- El listado de SDKs de terceros documentaba **5** entradas; hay **6**
+  (faltaba `com.google.android.gms.version`).
+
+Ambos se han vuelto a transcribir desde una ejecución limpia.
+
+### Un hallazgo metodológico, documentado en la clase
+
+`adb shell input tap` devuelve `rc=0` **aunque no haga nada**. Escribir en la
+pantalla equivocada es invisible en el código de salida y el síntoma aparece
+tres pasos más allá (login que no entra, `grep` vacío, hook que no dispara). Por
+eso todos los scripts de la clase terminan verificando un **efecto**
+(fichero de preferencias, lista de `shared_prefs`, `uiautomator dump`) en lugar
+de confiar en el `rc`.
+
+### Resultado
+
+```
+bloques bash en el guion: 49
+primera pasada:           5 con error
+pasada final:            0 con error  (dos veces seguidas)
+```
+
+Los 49 bloques se ejecutan encadenados en una sola terminal desde el laboratorio
+reinstalado, y las salidas que el guion declara como reales coinciden con lo
+impreso. La penúltima pasada se hizo además **sin reinstalar** (con las
+preferencias ya puestas), que es el peor caso para el bloque de `FilePref`:
+también da `0`.
+
+---
+
+## 10-ter. Comprobaciones de contenido
+
+### Los 15 CVE citados, contrastados contra NVD
+
+Todos los identificadores de `docs/clases/cve-2026-mobile.md` se consultaron en
+la API de NVD (`services.nvd.nist.gov/rest/json/cves/2.0`) el **2026-10-04**.
+**Los 15 existen.** Resultado:
+
+| CVE | Publicado | CVSS NVD | CWE NVD |
+|---|---|---|---|
+| CVE-2026-33362 | 2026-05-11 | 8.6 HIGH | CWE-321 |
+| CVE-2026-28626 | 2026-09-08 | 7.3 HIGH | CWE-601 |
+| CVE-2026-0047 | 2026-03-02 | 8.4 HIGH | CWE-280 |
+| CVE-2026-28666 | 2026-09-08 | 8.8 HIGH | CWE-863 |
+| CVE-2026-55273 | 2026-09-08 | 7.8 HIGH | CWE-20 |
+| CVE-2026-49932 | 2026-09-08 | 7.8 HIGH | CWE-122 |
+| CVE-2026-28604 | 2026-09-08 | 7.5 HIGH | CWE-362 |
+| CVE-2026-28618 | 2026-09-08 | 8.8 HIGH | — |
+| CVE-2026-28639 | 2026-09-08 | 7.8 HIGH | — |
+| CVE-2026-28662 | 2026-09-08 | 8.0 HIGH | — |
+| CVE-2026-49882 | 2026-09-08 | 8.8 HIGH | — |
+| CVE-2026-49884 | 2026-09-08 | 7.8 HIGH | — |
+| CVE-2026-49919 | 2026-09-08 | 7.8 HIGH | — |
+| CVE-2026-49921 | 2026-09-08 | **9.8 CRITICAL** | CWE-122 |
+| CVE-2017-13156 | 2017-12-06 | sin puntuación | CWE-434 |
+
+Dos correcciones salieron de esta comprobación:
+
+1. **CVE-2026-33362 está clasificado como CWE-321** (*Use of Hard-coded
+   Cryptographic Key*) en NVD, no como el genérico CWE-798 que decía el
+   documento. CWE-321 es además más preciso para el hallazgo.
+2. **La columna «Crítica» de la tabla §2.5 del documento de CVE es la escala de
+   Google, no la de CVSS.** En NVD, casi todos son `HIGH` y solo CVE-2026-49921
+   es `CRITICAL`. Se añadió una nota que obliga a decir de dónde sale cada cifra,
+   porque en un informe técnico la diferencia se nota.
+
+También se confirmó el rango de versiones de CVE-2017-13156 tal y como lo usa el
+guion para explicar por qué Android 8.1 lo bloquea: `5.1.1, 6.0, 6.0.1, 7.0,
+7.1.1, 7.1.2, 8.0` (Android ID `A-64211847`). La VM es 8.1.0.
+
+### Integridad del texto
+
+Recuento automático sobre todo el repositorio (`docs/`,
+`setup-mobile-pentest-lab.sh`) en busca de caracteres corruptos: CJK, cirílico,
+griego, vietnamita y caracteres de control. **0 hallazgos.** También se buscan
+anglicismos y erratas frecuentes (`tried`, `teh`, `recieve`, `occured`,
+`teach`…): **0**.
+
+Durante esta pasada se corrigieron dos corrupciones propias introducidas al
+reescribir y cinco erratas: dos caracteres CJK, `otro cosa` → `otra cosa`,
+`loudo` → `lo`, `distributing` → `colando`, `crypto` → `criptográfica`,
+`NSD` → `NVD`. El barrido posterior confirma que no quedan residuos.
+
 
 ### Estado tras las pruebas
 
@@ -493,6 +646,14 @@ cualquier divergencia se detecta comparando contra lo que hay en el documento.
 El guion de la Clase 3 tiene además una particularidad: documenta **tres ataques
 que no funcionan** (§2.6 y §2.8). Si al impartirla uno de ellos te sale bien,
 es probable que tu versión de Android sea ≤ 8.0, no que el documento esté mal.
+
+Y una segunda, más sutil: hay varios `grep` que **no** encuentran nada cuando
+todo está bien. En concreto, el `For the changepassword` solo aparece si hay un
+`mySharedPreferences.xml`, y el `Successful Login` de §2.5 solo si la app sigue
+apuntando al host tras el reinstalado. Son fallos **esperados** por diseño, no
+averías: por eso el guion los documenta con su prerrequisito al lado. Si un
+alumno te dice «no me sale», lo primero que hay que mirar no es su Frida: es si
+tiene configurada la IP del servidor.
 
 ---
 

@@ -163,7 +163,7 @@ MobSF tarda uno o dos minutos en levantar la primera vez. Mientras tanto,
 localiza la APK que hay que subir:
 
 ```bash
-ls -lh ~/mobile-pentesting-lab/apps/apk/InsecureBankv2.apk
+ls -lh ~/mobile-owasp-lab/apps/apk/InsecureBankv2.apk
 ```
 
 ### Analizar el reporte
@@ -226,8 +226,8 @@ mydb-journal
 Extrae y examina la base de datos:
 
 ```bash
-mkdir -p ~/mobile-pentesting-lab/reports/clase1
-cd ~/mobile-pentesting-lab/reports/clase1
+mkdir -p ~/mobile-owasp-lab/reports/clase1
+cd ~/mobile-owasp-lab/reports/clase1
 adb pull /data/data/com.android.insecurebankv2/databases/mydb .
 sqlite3 -header -column mydb "select * from names;"
 ```
@@ -305,8 +305,8 @@ D Successful Login:: , account=dinesh:Dinesh@123$
 > enseñar, porque vemos el fichero exacto y la línea exacta.
 
 ```bash
-cd ~/mobile-pentesting-lab/reports/jadx
-jadx ~/mobile-pentesting-lab/apps/apk/InsecureBankv2.apk -d InsecureBankv2
+cd ~/mobile-owasp-lab/reports/jadx
+jadx ~/mobile-owasp-lab/apps/apk/InsecureBankv2.apk -d InsecureBankv2
 ```
 
 `jadx-gui` también está instalado, pero requiere escritorio.
@@ -345,7 +345,7 @@ Con la clave de M1 desciframos el M2. Es el remate de la clase.
 > Usa el Python del venv del backend: es el único que tiene `pycryptodome`.
 
 ```bash
-PY_BIN=~/mobile-pentesting-lab/tools/InsecureBankv2Server/venv/bin/python
+PY_BIN=~/mobile-owasp-lab/tools/InsecureBankv2Server/venv/bin/python
 "$PY_BIN" - <<'PY'
 import base64
 from Crypto.Cipher import AES

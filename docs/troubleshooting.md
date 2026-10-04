@@ -517,6 +517,207 @@ oficialmente, pero el DEX resultante es válido:
 file classes.dex     # Dalvik dex file version 035
 ```
 
+### `frida: error: [Errno 2] No such file or directory: .../hook-m9-clave.js`
+
+**Causa:** el hook se instala en `~/mobile-owasp-lab/tools/hook-m9-clave.js`, no
+en `reports/`. Si el guion busca la ruta equivocada, el `cp` falla y Frida se
+lanza con un `-l` que no existe.
+
+```bash
+cp ~/mobile-owasp-lab/tools/hook-m9-clave.js .
+ls -l hook-m9-clave.js        # si esto no lista nada, la ruta está mal
+```
+
+Comprueba que el `cp` no falló **antes** de lanzar Frida: con un `-l` inexistente
+no da un error claro, se queda esperando y parece que el hook cargó.
+
+### El hook captura un Base64 con salto de línea y espacios al final
+
+```
+[M9] aesDeccryptedString (descifrando)  <-  "DTrW2VXjSoFdg0e61fHxJg==
+  "
+```
+
+**No es un fallo.** El valor sale de `mySharedPreferences.xml`, que está
+indentado: las entidades `&#10;` y `&#13;` se convierten en salto de línea y
+espacios **dentro** de la cadena. `Base64.decode` los tolera y la app funciona
+igual.
+
+Es un recordatorio útil: la contraseña cifrada almacenada no es un Base64 limpio,
+sino el XML serializado con su formato dentro. Comparar ese valor con el
+esperado falla aunque todo funcione.
+
+### `error: file not found: janus-src/com/android/insecurebankv2/CryptoClass.java`
+
+**Causa:** el paquete lo declara el **fichero** (`package com.android
+.insecurebankv2;` dentro del `.java`), no el directorio donde vive. El fichero
+está en `janus-src/CryptoClass.java`, plano.
+
+**Lo peligroso:** `javac` falla, `d8` se queja de que no encuentra
+`classes/com/…/CryptoClass.class`… y `ls -l classes.dex` **aun así muestra un
+`classes.dex`**: el de la ejecución anterior. Estarías verificando la firma de
+un fichero viejo.
+
+**Solución:** borra los artefactos antes de compilar, y usa la ruta real:
+
+```bash
+cd ~/mobile-owasp-lab/reports/clase3
+rm -rf classes classes.dex
+javac -d classes janus-src/CryptoClass.java
+d8 --min-api 15 --output . classes/com/android/insecurebankv2/CryptoClass.class
+ls -l classes.dex      # comprueba que la FECHA es de ahora
+```
+
+### `prepend.py` falla con `IndexError: list index out of range`
+
+**Causa:** el script necesita **dos** argumentos: la APK original y la de salida.
+Con uno solo aborta *después* de imprimir las tres primeras líneas, así que
+parece que ha funcionado.
+
+```bash
+python3 prepend.py \
+  ~/mobile-owasp-lab/apps/apk/InsecureBankv2.apk \
+  InsecureBankv2_janus.apk
+```
+
+Si te lo saltas, se queda en disco la APK de una ejecución anterior y
+`apksigner verify` dará `true` sobre el fichero viejo. Borra el de salida antes
+(`rm -f InsecureBankv2_janus.apk`) y fíjate en que el script imprima la línea
+`entrada a entrada identicas: OK (555 entradas)`.
+
+### `No result found.` al consultar el ContentProvider
+
+**No es que esté protegido.** La tabla `trackerusers` está vacía porque no has
+hecho ningún login desde la instalación. Cada login inserta una fila.
+
+```bash
+adb -s 172.25.208.100:5555 shell content query \
+  --uri content://com.android.insecurebankv2.TrackUserContentProvider/trackerusers
+```
+
+Haz un login y vuelve a preguntar. Los `id` que verás son autoincremento y
+cambian según el historial (`id=1` en una instalación nueva, `id=11`… después de
+varios logins); el hallazgo es la **forma**, no el número.
+
+### El grep de `For the changepassword` no devuelve nada
+
+**Causa:** el receptor de SMS lee el usuario y la contraseña de
+`mySharedPreferences`, que solo escribe `saveCreds()` **cuando un login ha
+funcionado**. Sin ese fichero, `MyBroadCastReceiver.onReceive` peta un
+`NullPointerException` que **se traga**, y no loguea nada:
+
+```
+W System.err: java.lang.NullPointerException: Attempt to invoke virtual method
+  'byte[] java.lang.String.getBytes()' on a null object reference
+  at com.android.insecurebankv2.MyBroadCastReceiver.onReceive(MyBroadCastReceiver.java:31)
+```
+
+**Solución:** comprueba el fichero antes de lanzar el broadcast:
+
+```bash
+adb -s 172.25.208.100:5555 shell "ls /data/data/com.android.insecurebankv2/shared_prefs/"
+# debe listar  com.android.insecurebankv2_preferences.xml  y  mySharedPreferences.xml
+```
+
+Si solo aparece el primero, haz un login correcto primero.
+
+### El snippet de `FilePref` "pasa" pero la IP sigue siendo `10.0.2.2`
+
+**Causa:** el bloque usaba `sleep 3` fijo para esperar a que la pantalla
+estuviera pintada. Si el emulador tarda más, los `tap` caen en el vacío — y
+`adb shell input` devuelve `0` igual, así que no hay ningún error visible.
+
+**Solución:** espera a la **UI**, no al reloj. El guion lo hace así:
+
+```bash
+adb $D shell am start -n com.android.insecurebankv2/.FilePrefActivity
+for i in $(seq 1 20); do
+  adb $D shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+  adb $D shell cat /sdcard/ui.xml | grep -q edittext_serverip && break
+  sleep 1
+done
+```
+
+Y verifica siempre el efecto (`cat` de las preferencias), nunca el `rc` del
+`tap`.
+
+### La IP del servidor sale duplicada: `10.0.2.2172.25.208.104`
+
+**Causa:** `adb shell input text` **añade** al final del campo, no lo sustituye.
+Los campos de `FilePref` salen precargados con `10.0.2.2` y `8888`.
+
+**Solución:** toca el **borde derecho** del campo (así el cursor cae al final) y
+vacíalo con `DEL` antes de escribir:
+
+```bash
+adb $D shell input tap 625 110                    # borde derecho del campo IP
+for i in $(seq 1 25); do adb $D shell input keyevent 67; done
+adb $D shell input text "172.25.208.104"
+```
+
+**No uses `KEYCODE_MOVE_END`**: en Android 8.1 no lleva el cursor al final en
+este campo, y los `DEL` se comen lo que tienen a la izquierda, dejando un
+prefijo (`10172.25.208.104`). Verifícalo siempre mirando las preferencias:
+
+```bash
+adb $D shell "cat /data/data/com.android.insecurebankv2/shared_prefs/com.android.insecurebankv2_preferences.xml" \
+  | grep -E 'serverip|serverport'
+```
+
+Esto mismo pasa con los campos del login: si están autocompletados, escribes
+`dineshdinesh` y la contraseña repetida, el login sigue «funcionando» y lo que
+guardas está duplicado.
+
+### `curl` devuelve `rc=7` y `Connection refused` en Fase 3
+
+**Causa:** §2.6 apagó el backend a propósito para demostrar un fallo. Si sigues
+a Fase 3 sin volver a levantarlo, no hay servidor y por tanto no hay `/devlogin`
+que demostrar.
+
+```bash
+sudo systemctl start insecurebankv2-server
+systemctl is-active insecurebankv2-server   # active
+```
+
+### `adb shell input tap` devuelve `rc=0` pero no hace nada
+
+**Esto es lo más traicionero de toda la clase.** `input` siempre devuelve `0`,
+aunque escribas en la pantalla equivocada. El síntoma aparece tres pasos más
+adelante: un login que no entra, un `grep` vacío, un hook de Frida que no
+dispara.
+
+**Solución:** no confíes en el `rc` de los `tap`; verifica el **efecto**:
+
+```bash
+# ¿la app está configurada?
+adb $D shell "cat /data/data/com.android.insecurebankv2/shared_prefs/com.android.insecurebankv2_preferences.xml" \
+  | grep -E 'serverip|serverport'
+# ¿el login ha pasado de verdad?
+adb $D shell "ls /data/data/com.android.insecurebankv2/shared_prefs/" | grep mySharedPreferences
+# ¿qué pantalla hay delante ahora mismo?
+adb $D shell uiautomator dump /sdcard/ui.xml >/dev/null && adb $D shell cat /sdcard/ui.xml \
+  | grep -oE 'text="[^"]+"' | sort -u
+```
+
+### `sed` cambió el nombre pero el móvil sigue mostrando el viejo
+
+**Causa:** `sed` edita el **fuente**, no la APK. Hay que reconstruir, volver a
+firmar y reinstalar:
+
+```bash
+export PATH="$PATH:/opt/android-sdk/build-tools/33.0.2"
+cd ~/mobile-owasp-lab/reports
+apktool b InsecureBankv2_mod -o InsecureBankv2_mod3.apk
+apksigner sign --ks attacker.keystore --ks-key-alias attacker \
+  --ks-pass pass:attacker123 --key-pass pass:attacker123 \
+  --out InsecureBankv2_mod3_signed.apk InsecureBankv2_mod3.apk
+adb $D uninstall com.android.insecurebankv2
+adb $D install InsecureBankv2_mod3_signed.apk
+```
+
+Y recuerda que el `uninstall` **se lleva las preferencias**: hay que reapuntar
+la IP al host otra vez.
+
 ### `pkill -f` me ha matado la terminal
 
 **Causa:** `pkill -f <patrón>` compara contra la **línea de comandos completa**,

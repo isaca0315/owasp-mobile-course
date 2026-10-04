@@ -35,10 +35,10 @@ CLASE 1 — BACKEND DE LA APP (AndroLabServer)
 [ OK ] Descargado: models.py (1.7K)
 [ OK ] Descargado: database.py (727)
 [ OK ] Descargado: mydb.db (5.0K)
-[ OK ] Fuentes del backend en /home/cwl/mobile-pentesting-lab/tools/InsecureBankv2Server
+[ OK ] Fuentes del backend en /home/cwl/mobile-owasp-lab/tools/InsecureBankv2Server
 [ .. ] Portando el backend a Python 3...
 [ OK ] Backend portado a Python 3.
-[ OK ] Backend listo en /home/cwl/mobile-pentesting-lab/tools/InsecureBankv2Server
+[ OK ] Backend listo en /home/cwl/mobile-owasp-lab/tools/InsecureBankv2Server
 [ OK ] Backend arrancado y escuchando en 0.0.0.0:8888.
 
 [ OK ] Comandos creados: bank-start, bank-stop, bank-status
@@ -159,7 +159,7 @@ $ adb shell "cat /data/data/com.android.insecurebankv2/shared_prefs/*.xml"
 ### Descompilación
 
 ```console
-$ jadx -d InsecureBankv2 ~/mobile-pentesting-lab/apps/apk/InsecureBankv2.apk
+$ jadx -d InsecureBankv2 ~/mobile-owasp-lab/apps/apk/InsecureBankv2.apk
 INFO  - done        (2291 clases)
 ```
 
@@ -190,7 +190,7 @@ InsecureBankv2/sources/com/android/insecurebankv2/DoLogin.java:115:             
 ### El remate: M1 descifra M2
 
 ```console
-$ ~/mobile-pentesting-lab/tools/InsecureBankv2Server/venv/bin/python - <<'PY'
+$ ~/mobile-owasp-lab/tools/InsecureBankv2Server/venv/bin/python - <<'PY'
 import base64
 from Crypto.Cipher import AES
 key = b"This is the super secret key 123"   # M1: CryptoClass.java:22
@@ -242,7 +242,7 @@ id  name
     Verificacion historica de lo ya registrado:
 09-29 05:02:23.679  5127  5147 D Successful Login:: , account=dinesh:Dinesh@123$
 
-Informes guardados en: /home/cwl/mobile-pentesting-lab/reports/clase1
+Informes guardados en: /home/cwl/mobile-owasp-lab/reports/clase1
 ```
 
 Código de salida: `0`.
