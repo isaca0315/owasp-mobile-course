@@ -655,13 +655,21 @@ Si solo aparece el primero, haz un login correcto primero.
 estuviera pintada. Si el emulador tarda más, los `tap` caen en el vacío — y
 `adb shell input` devuelve `0` igual, así que no hay ningún error visible.
 
-**Solución:** espera a la **UI**, no al reloj. El guion lo hace así:
+**Y hay una segunda causa, más traicionera:** si la espera se hace con
+`uiautomator dump` + `grep` pero **no se borra el dump anterior**, una salida
+fallida del dump hace que el `grep` lea el fichero de la ejecución **previa**
+(que ya contenía `edittext_serverip`) y el bucle crea que la UI está lista
+cuando no lo está.
+
+**Solución:** espera a la **UI**, no al reloj — y borra el dump en cada vuelta.
+El guion lo hace así:
 
 ```bash
 adb $D shell am start -n com.android.insecurebankv2/.FilePrefActivity
 for i in $(seq 1 20); do
+  adb $D shell "rm -f /sdcard/ui.xml"            # evita leer un dump VIEJO
   adb $D shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
-  adb $D shell cat /sdcard/ui.xml | grep -q edittext_serverip && break
+  adb $D shell cat /sdcard/ui.xml 2>/dev/null | grep -q edittext_serverip && break
   sleep 1
 done
 ```

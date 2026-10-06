@@ -142,8 +142,9 @@ adb $D shell am start -n com.android.insecurebankv2/.FilePrefActivity
 # espera a que la pantalla este LISTA, no un sleep fijo: si no, el tap cae
 # en el vacio y adb devuelve 0 igualmente (fallo silencioso).
 for i in $(seq 1 20); do
+  adb $D shell "rm -f /sdcard/ui.xml"            # evita leer un dump VIEJO
   adb $D shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
-  adb $D shell cat /sdcard/ui.xml | grep -q edittext_serverip && break
+  adb $D shell cat /sdcard/ui.xml 2>/dev/null | grep -q edittext_serverip && break
   sleep 1
 done
 # los campos vienen precargados (10.0.2.2 / 8888): hay que BORRAR antes.
@@ -657,8 +658,9 @@ adb $D install InsecureBankv2_mod2_signed.apk
 > ```bash
 > adb $D shell am start -n com.android.insecurebankv2/.FilePrefActivity
 > for i in $(seq 1 20); do
+>   adb $D shell "rm -f /sdcard/ui.xml"            # evita leer un dump VIEJO
 >   adb $D shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
->   adb $D shell cat /sdcard/ui.xml | grep -q edittext_serverip && break
+>   adb $D shell cat /sdcard/ui.xml 2>/dev/null | grep -q edittext_serverip && break
 >   sleep 1
 > done
 > # los campos vienen precargados (10.0.2.2 / 8888): hay que BORRAR antes.
@@ -681,6 +683,14 @@ adb $D install InsecureBankv2_mod2_signed.apk
 > `KEYCODE_MOVE_END` **no** sirve aquí: en Android 8.1 no lleva el cursor al
 > final en este campo, y los `DEL` se comen lo que tienen a la izquierda.
 > Si esas dos líneas no aparecen, **no sigas**: todo lo demás va a fallar.
+>
+> 🔖 **Y fíjate en el `rm -f /sdcard/ui.xml` del bucle:** es necesario. Si
+> `uiautomator dump` falla (la pantalla aún no está pintada), el `cat` leería el
+> `ui.xml` de la ejecución **anterior** —que sí contiene `edittext_serverip`— y
+> el bucle saldría creyendo que la UI está lista. Borrarlo en cada vuelta obliga
+> a que el `grep` lea un fichero recién escrito. Es el mismo patrón de "carrera"
+> que el `sleep 3` que sustituimos: adivinar el tiempo o leer basura son, en la
+> práctica, lo mismo.
 
 Ahora el control, que es lo que da valor a la demostración. **Qué responde
 realmente el servidor** a un usuario que no existe:
@@ -1035,8 +1045,9 @@ preferencias y la siguiente Fase 3 necesita que el login funcione:
 ```bash
 adb $D shell am start -n com.android.insecurebankv2/.FilePrefActivity
 for i in $(seq 1 20); do
+  adb $D shell "rm -f /sdcard/ui.xml"            # evita leer un dump VIEJO
   adb $D shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
-  adb $D shell cat /sdcard/ui.xml | grep -q edittext_serverip && break
+  adb $D shell cat /sdcard/ui.xml 2>/dev/null | grep -q edittext_serverip && break
   sleep 1
 done
 # toca el BORDE DERECHO del campo: así el cursor cae al final

@@ -562,6 +562,25 @@ la ronda del 2026-10-04. El único hallazgo fue operativo —la VM no trae
 `frida-server` corriendo tras un reinicio— y quedó recogido en
 `troubleshooting.md`.
 
+### Tercera pasada del 2026-10-06 (la definitiva, ya con la Clase 4 en el repo)
+
+Se repitió desde laboratorio **reinstalado** para dejar el servidor listo para
+impartir. La primera tanda destapó **un fallo real más**:
+
+| # | Síntoma | Causa real | Corrección |
+|---|---|---|---|
+| 20 | El bloque de `FilePref` guardaba `10.0.2.2`, no la IP del host | La espera de UI no borraba el `ui.xml` anterior: si `uiautomator dump` fallaba, el `grep` leía el dump **viejo** (que ya tenía `edittext_serverip`) y salía antes de tiempo | `rm -f /sdcard/ui.xml` dentro del bucle, antes de cada `dump` |
+
+Corregido, la pasada da **49/49 con `rc=0`**, dos veces seguidas (reinstalando y
+sin reinstalar), y **Frida real** vuelve a capturar los dos sentidos. El total de
+la Clase 3 sube a **20 fallos** encontrados y corregidos entre las tres vueltas de
+verificación.
+
+**Estado del laboratorio al terminar:** APK original (`CN=Dinesh Shetty`)
+instalada y apuntando a `172.25.208.104:8888`, backend `active`, `frida-server`
+corriendo, y sin artefactos de las demos (`.apk` modificadas, `attacker.keystore`,
+`classes.dex` y Janus) en disco.
+
 ---
 
 ## 10-ter. Comprobaciones de contenido
