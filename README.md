@@ -32,6 +32,8 @@ escritorio (SSH, sin X, sin monitor).
 | | [`docs/clases/clase-3-evidencia.md`](docs/clases/clase-3-evidencia.md) | Transcripción real: 20 hallazgos y 3 fallos documentados |
 | | [`docs/clases/hook-m9-clave.js`](docs/clases/hook-m9-clave.js) · [`prepend-janus.py`](docs/clases/prepend-janus.py) · [`CryptoClass-janus.java`](docs/clases/CryptoClass-janus.java) | Herramientas de M9 y M8 |
 | | [`docs/clases/cve-2026-mobile.md`](docs/clases/cve-2026-mobile.md) | Cada hallazgo mapeado a CVE reales de 2026 |
+| **4** — Resiliencia: defensa del cliente | [`docs/clases/clase-4-resiliencia.pptx`](docs/clases/clase-4-resiliencia.pptx) | Presentación (18 diapositivas): repaso M1–M10 + MASVS-RESILIENCE |
+| | [`docs/clases/clase-4-resiliencia.md`](docs/clases/clase-4-resiliencia.md) | Guion de la sesión · genera la PPTX con [`make-clase4-ppt.py`](docs/clases/make-clase4-ppt.py) |
 
 ---
 
@@ -297,6 +299,10 @@ Resumen honesto, en detalle en [`docs/verificacion.md`](docs/verificacion.md):
   contrastadas. Sin regresiones; el único hallazgo fue operativo (la VM arrancó
   sin `frida-server` corriendo). Ver §10-bis de
   [`docs/verificacion.md`](docs/verificacion.md).
+- **Clase 4 (resiliencia)**: cierra el curso con un repaso del Top 10 y el grupo
+  **MASVS-RESILIENCE** de OWASP MASVS. Es material de repaso y defensa —no un
+  ataque nuevo— y así se documenta en su
+  [anexo B](docs/clases/clase-4-resiliencia.md#anexo-b--lo-que-no-está-verificado).
 - **Verificado estáticamente**: sintaxis, `shellcheck` en nivel `style`, todas
   las URLs y versiones, y los ficheros que el script genera.
 - **No verificado de forma integrada**: la instalación completa del script

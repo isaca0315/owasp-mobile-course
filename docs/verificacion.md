@@ -617,7 +617,6 @@ reescribir y cinco erratas: dos caracteres CJK, `otro cosa` → `otra cosa`,
 `loudo` → `lo`, `distributing` → `colando`, `crypto` → `criptográfica`,
 `NSD` → `NVD`. El barrido posterior confirma que no quedan residuos.
 
-
 ### Estado tras las pruebas
 
 ```
@@ -627,6 +626,42 @@ proxy VM:        :0
 mydb:            0 filas
 base del backend: dinesh,jack   (restaurada)
 ```
+
+---
+
+## 10-quater. Clase 4 (resiliencia) — Material didáctico, verificado lo verificable
+
+La Clase 4 cierra el curso con un **repaso del OWASP Mobile Top 10** y el grupo
+**MASVS-RESILIENCE**. No es una clase de ataque: no añade una vulnerabilidad
+nueva contra la VM. Por eso lo que se verifica aquí es distinto.
+
+### Qué se ha comprobado
+
+- **Los cuatro controles MASVS-RESILIENCE-1..4** y su descripción, contra la
+  documentación oficial en `mas.owasp.org`. Correctos.
+- **Los identificadores `MASWE` y `MASTG-KNOW` citados** existen y corresponden a
+  lo que dice el guion (p. ej. `MASTG-KNOW-0027` root, `-0035` Play Integrity,
+  `-0058` integridad en runtime, `-0065` detección de herramientas de análisis
+  dinámico).
+- **La presentación `.pptx` se genera y se renderiza.** 18 diapositivas, sin
+  texto desbordado (revisadas convirtiendo a PDF y a imagen con LibreOffice).
+- **El instalador copia el material** al laboratorio (`CLASE4-RESILIENCIA.pptx`,
+  `.md` y el generador), de forma idéntica al repositorio.
+- **Las observaciones sobre InsecureBankv2** («no comprueba la firma», «no
+  detecta Frida», «root detection decorativa») **reutilizan resultados de las
+  Clases 1–3**, que sí están verificados de extremo a extremo.
+
+### Qué NO se ha comprobado (y se dice en el guion)
+
+1. **No se ha construido ni probado una app endurecida.** Los controles se
+   describen; no se implementan ni se comprueban en ejecución.
+2. **Play Integrity API y Key Attestation no se han probado** (fuera del alcance
+   del laboratorio headless).
+3. **No se ejecutó el procedimiento de test completo de cada `MASTG-TEST`**; se
+   citan sus `MASTG-KNOW` como referencia.
+
+Todo esto está en el
+[Anexo B del guion](clases/clase-4-resiliencia.md#anexo-b--lo-que-no-está-verificado).
 
 ---
 
@@ -650,9 +685,10 @@ Conviene decirlo con claridad:
 4. **El servicio systemd del backend en un sistema con systemd real.** En el
    entorno de pruebas no había un `systemd` completo.
 
-5. **Clases 4 en adelante.** Este repositorio documenta y prepara las Clases 1,
-   2 y 3. **Las tres están escritas y verificadas** (ver secciones 9 y 10). No hay
-   guion de clase posterior a la 3.
+5. **Clases posteriores a la 4.** Este repositorio documenta y prepara las Clases
+   1, 2 y 3 (ataque, verificadas de extremo a extremo) y la Clase 4 (resiliencia,
+   material didáctico con lo verificable comprobado en §10-quater). No hay guion
+   para una clase 5.
 
 6. **Los CVE citados en `docs/clases/cve-2026-mobile.md` no se han reproducido.**
    Son vulnerabilidades reales de otros productos (Android, SDKs de terceros, apps
@@ -668,6 +704,8 @@ Antes de impartir la primera clase, ejecutar el instalador completo una vez
 sobre el servidor definitivo y recorrer los guiones de las Clases 1, 2 y 3
 enteros. Los tres están escritos con **salidas reales capturadas**, así que
 cualquier divergencia se detecta comparando contra lo que hay en el documento.
+La Clase 4 es de repaso y defensa: se puede impartir sin depender de la VM,
+pero la demo reutiliza resultados de la Clase 3.
 
 El guion de la Clase 3 tiene además una particularidad: documenta **tres ataques
 que no funcionan** (§2.6 y §2.8). Si al impartirla uno de ellos te sale bien,
