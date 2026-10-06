@@ -536,6 +536,32 @@ impreso. La penúltima pasada se hizo además **sin reinstalar** (con las
 preferencias ya puestas), que es el peor caso para el bloque de `FilePref`:
 también da `0`.
 
+### Repetición del 2026-10-06 (previa a impartir la clase)
+
+El día antes de dar la clase se volvió a ejecutar todo desde cero, sobre una VM
+que arrancó **desconectada**: hubo que `adb connect`, `adb root` y arrancar
+`frida-server` a mano. Con eso preparado:
+
+- **49/49 bloques `bash` con `rc=0`**, dos pasadas seguidas (una reinstalando y
+  otra sin reinstalar). Sin regresiones.
+- **Frida real** (no el shim), los dos sentidos: `aesEncryptedString <-
+  "Dinesh@123$"` y `aesDeccryptedString <- "DTrW2VXjSoFdg0e61fHxJg==\n    "`,
+  más el `For the changepassword` en logcat.
+- Salidas contrastadas contra el documento: los 4 métodos de §1.2, los 6
+  componentes de §1.5, `User Does not Exist` + `Successful Login:: ,
+  account=usuario-inexistente:basura`, `BancoSeguro OFICIAL` dentro de
+  `resources.arsc`, Janus (844 bytes, 555 entradas idénticas, firma v1 válida,
+  Android 8.1 rechaza), `/devlogin` y el provider sin permisos.
+- Firma instalada comprobada por `apksigner`: `CN=Dinesh Shetty, …` (original) y
+  `CN=Attacker, …` (modificada).
+- Copias del laboratorio (`guion`, `hook-m9-clave.js`, `prepend.py`,
+  `CryptoClass-janus.java`) **idénticas** a las del repositorio.
+
+**No hubo nada que corregir**: el guion y las herramientas ya estaban bien tras
+la ronda del 2026-10-04. El único hallazgo fue operativo —la VM no trae
+`frida-server` corriendo tras un reinicio— y quedó recogido en
+`troubleshooting.md`.
+
 ---
 
 ## 10-ter. Comprobaciones de contenido

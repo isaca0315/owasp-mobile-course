@@ -292,6 +292,11 @@ Resumen honesto, en detalle en [`docs/verificacion.md`](docs/verificacion.md):
   2026-10-04: todos existen. Dos correcciones salieron de ahí (CWE-321 en lugar
   de CWE-798 para CVE-2026-33362, y la distinción entre la severidad «Crítica»
   de Google y el CVSS real de NVD). Ver §10-ter del mismo documento.
+- **Re-verificación de la Clase 3 el 2026-10-06** (víspera de impartirla): otra
+  vez 49/49 bloques en verde, Frida real en los dos sentidos y todas las salidas
+  contrastadas. Sin regresiones; el único hallazgo fue operativo (la VM arrancó
+  sin `frida-server` corriendo). Ver §10-bis de
+  [`docs/verificacion.md`](docs/verificacion.md).
 - **Verificado estáticamente**: sintaxis, `shellcheck` en nivel `style`, todas
   las URLs y versiones, y los ficheros que el script genera.
 - **No verificado de forma integrada**: la instalación completa del script

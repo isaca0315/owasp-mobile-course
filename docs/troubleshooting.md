@@ -205,14 +205,42 @@ vmconnect frida
 
 Imprime la URL y los comandos con la versión correcta ya rellenados.
 
-### `frida-ps` dice `unable to connect`
+### `frida-ps` dice `unable to connect` (o `device ... not found`)
 
-Casi siempre es que falta root en la VM, o que `frida-server` no está corriendo
-dentro:
+Casi siempre es una de estas tres, en este orden:
+
+**1. La VM no está conectada.** Tras un reinicio, ADB no la recuerda:
 
 ```bash
-adb -s 172.25.208.100:5555 shell '/data/local/tmp/frida-server-android-x86_64 &'
+adb connect 172.25.208.100:5555
+adb devices          # debe decir 'device', no 'offline' ni nada
 ```
+
+**2. Falta root.** Sin `adb root`, `frida-server` no puede engancharse a otras
+apps:
+
+```bash
+adb -s 172.25.208.100:5555 root
+adb -s 172.25.208.100:5555 wait-for-device
+adb -s 172.25.208.100:5555 shell id     # uid=0(root)
+```
+
+**3. `frida-server` no está corriendo** (no arranca solo tras un reinicio de la
+VM). El binario vive en `/data/local/tmp/`; según cómo se instaló puede llamarse
+`frida-server` o `frida-server-android-<arch>`, así que **localízalo primero**:
+
+```bash
+adb -s 172.25.208.100:5555 shell "ls -l /data/local/tmp/ | grep -i frida"
+# en esta VM: /data/local/tmp/frida-server
+adb -s 172.25.208.100:5555 shell "nohup /data/local/tmp/frida-server >/dev/null 2>&1 &"
+sleep 3
+adb -s 172.25.208.100:5555 shell "ps -A | grep frida"   # debe aparecer
+frida-ps -U                                             # lista de procesos
+```
+
+> ⚠️ **La versión del binario y la del cliente tienen que coincidir.** Aquí
+> ambas son **17.19.0**. Si no, Frida avisa con `server version mismatch`
+> (entrada de arriba).
 
 ### `unrecognized arguments: --no-pause`
 
